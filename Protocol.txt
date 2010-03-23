@@ -1,0 +1,318 @@
+Protocol
+
+NOTE: To get a UTC timestamp in milliseconds: 
+return Calendar.getInstance().getTimeInMillis();
+
+Room:         (/[a-zA-Z0-9_]+)      alphanumeric + underscore words separated by /'s)
+Alias:        [a-zA-Z0-9_]+         alphanumeric + underscore word
+Number:       [1-9][0-9]*           integer
+
+RingNumber:    Number (Int32)
+ServerNumber:  Number (Int32)
+ClientNumber:  Number (Int32)
+Priority:      Number (Int32)
+MessageLength: Number (Int32)
+ServerAddress: DNS name or IP address
+Port:          Number from 1 through 65535 inclusive
+
+Server ID:    RingNumber.ServerNumber
+Client ID:    [Room].ClientNumber     Salt is used to randomize fallback server
+Message ID:   [Client ID]:Number      Number should be strictly increasing for subsequent messages from same client
+
+UTC timestamp: [POSIX time].[milliseconds]
+
+================================================================================
+Ring protocol
+================================================================================
+
+========================================
+Status ping
+========================================
+
+1. Started by head node, continued from predecessor to successor until it 
+   returns to the head node.
+
+	P:
+	RINGSTAT\n
+	Source: [Server ID]
+	Statuses: {[Server ID] [Server Address] [Port] [Health]|}*\n
+	Rooms: {[Room] [Cumulative client count]|}*\n
+	Migrations: {[Room], {[Server ID] [Server Address] [Port] [Health]|}*&}*
+	\n
+
+For migrations, the ',', '|', and '&' are separators.
+
+Note that every forwarding node has complete topological information about the
+ring from the status updates because Server ID's are in strictly increasing 
+order, with the minimum ID being the head node.
+
+========================================
+Message forwarding
+========================================
+
+1. Started by receiving node, continued around loop until receiving node 
+receives its own message.
+	P:
+	FORWARD\n
+	Source: [Server ID]
+	Time: [UTC Timestamp]
+	Sender: [Client ID]\n
+	Alias: [Alias]\n
+	Room: [Room]\n
+	MessageID: [Message ID]\n
+	\n
+	[Message]
+
+2. When receiving node receives its own forwarding (loop is complete), it sends
+the ACK to the client.
+
+3. Each server in the ring sends a MESG notification to all of its clients in
+the relevant rooms.
+
+========================================
+Inserting a new server into the ring
+========================================
+
+0. Only the head node can order a new server to be added.
+
+1. Node chooses a predecessor to reinsert itself after.
+
+2. Node sends update to predecessor
+	N:
+	INSERT_AFTER\n
+	Server: [Server ID] [Server Address] [Port]\n
+	\n
+	
+	P:
+	INSERT_ACK\n
+	\n
+
+3. Node sends update to successor
+	N:
+	INSERT_BEFORE\n
+	Server: [Server ID] [Server Address] [Port]\n
+	\n
+	
+	S:
+	INSERT_ACK\n
+	\n
+
+4.	Before INSERT_ACK from predecessor, Node assumes that it's not in the ring.
+	After INSERT_ACK from predecessor:
+		Before INSERT_ACK from successor, Node forwards status pings without including itself.
+		After INSERT_ACK from successor, Node includes itself in status pings to make it visible to the ring. 
+
+5. Predecessor sends message histories.
+
+========================================
+Sending message histories
+========================================
+
+1. Sender sends set of FORWARD messages to receiver for each relevant room.
+
+In the case of adding a node, the predecessor to the inserted node forwards
+ALL of its histories to the new node.
+
+In the case of migrating a room, the original room sends the history for the 
+migrating room to the new node.
+
+========================================
+Create new room
+========================================
+
+1. Pick most idle ring. Send packet to head node of idle ring:
+	C: 
+	CREATE\n
+	Room: [Room]\n
+	\n
+	
+2. Head node adds room to status ping.
+3. Room is active when status ping goes full circle.
+	S:
+	CREATED\n
+	Room: [Room]\n
+	\n
+
+========================================
+Room death
+========================================
+
+1. Head node sends status ping
+2. Ping returns with a 0-member room.
+3. Head node removes room from status ping's room list.
+4. Forwarding nodes remove room on next ping.
+
+================================================================================
+Halo protocol
+================================================================================
+
+========================================
+Halo status pings
+========================================
+
+1. Every halo's head node has a n millisecond delay.
+2. Forwards a status ping:
+
+	S:
+	HALOSTAT\n
+	Health: {[Ring ID] [Server ID] [Server Address] [Port] [Health]|}*\n
+	\n
+	
+3. Each server updates its own entry and forwards after the delay.
+
+TODO: How to choose where to migrate a room.
+
+TODO: How to add new room.
+
+========================================
+Find Room
+========================================
+
+1. Head node checks own rooms.
+2. Head node checks successor:
+
+	H:
+	SEARCH\n
+	Room: [Room]\n
+	\n
+
+3. Successor returns authentication result if it owns room:
+
+	S:
+	ROOM\n
+	Client: [Client ID]\n
+	Servers: {[Priority] [Server ID] [Server Address] [Port]|}*\n
+	\n
+
+   If successor does not own room:
+   
+   	S:
+   	NOROOM\n
+	Room: [Room]\n
+	\n
+
+4. If successor does not own room, then check with the successor of the successor, repeat step 3.
+
+5. On positive result, relay authentication info to client in a FOUND message. 
+
+========================================
+Migrate room
+========================================
+
+1. Head node from source ring creates new room in target ring.
+2. Head node from source ring removes room from its own public listing.
+3. Head node forwards history to new head node.
+
+4. Head node sends status ping that includes the migration order.
+5. Head node forwards all new messages into the new head node until old room
+    reports 0 members.
+6. Head node removes room from status ping listing, stops forwarding to new room.
+7. migration is complete.
+
+================================================================================
+Client-Server protocol
+================================================================================
+
+========================================
+Authentication:
+========================================
+
+C:
+FIND\n
+Room: [Room]\n
+\n
+
+S:
+FOUND\n
+Client: [Client ID]\n
+Servers: {[Priority] [Server ID] [Server Address] [Port]|}*\n
+Room: [Room]\n
+\n
+
+========================================
+Open connection: 
+========================================
+
+C:
+CONN\n
+Client: [Client ID]\n
+Room: [Room]\n
+\r\n
+
+S: 
+OK\n
+ServerID: [Server ID]\n
+Servers: {[Priority] [Server ID] [Server Address] [Port]|}*\n
+Room: [Room]\n
+Time: [UTC timestamp]
+\n
+
+========================================
+Recover connection:
+========================================
+
+C:
+RECONN\n
+Client: [Client ID]\n
+Room: [Room]\n
+LastAcked: [UTC timestamp]\n
+LastReceived: [UTC timestamp]\n
+\n
+
+S: 
+OK\n
+ServerID: [Server ID]\n
+Servers: {[Priority] [Server ID] [Server Address] [Port]|}*\n
+Room: [Room]\n
+Time: [UTC timestamp]
+\n
+
+NOTE: After ack, Client attempts to SEND all unacknowledged messages,
+and Server attempts to MESG all unreceived messages.
+
+========================================
+Send message
+========================================
+
+C:
+SEND\n
+Sender: [Client ID]\n
+Alias: [Alias]\n
+Room: [Room]\n
+MessageID: [Message ID]\n
+\n
+[Message]
+
+S:
+ACK\n
+ServerID: [Server ID]\n
+Servers: {[Priority] [Server ID] [Server Address] [Port]|}*\n
+Room: [Room]\n
+Time: [UTC timestamp]
+\n
+
+========================================
+Notify message
+========================================
+
+S:
+MESG\n
+ServerID: [Server ID]\n
+Servers: {[Priority] [Server ID] [Server Address] [Port]|}*\n
+Time: [UTC timestamp]\n
+Sender: [Client ID]\n
+Alias: [Alias]\n
+Room: [Room]\n
+MessageID: [Message ID]\n
+\n
+[Message]
+
+========================================
+Update fallbacks
+========================================
+
+S:
+UPDT\n
+ServerID: [Server ID]\n
+Servers: {[Priority] [Server ID] [Server Address] [Port]|}*\n
+Room: [Room]\n
