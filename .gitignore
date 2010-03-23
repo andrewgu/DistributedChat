@@ -1,0 +1,10 @@
+/bin/Sandbox.class
+/bin/protocol/ProtocolServer$ServerConnection.class
+/bin/protocol/ProtocolServer.class
+/bin/protocol/Packet.class
+/bin/protocol/IServerHandler.class
+/bin/protocol/IServerConnection.class
+/bin/protocol/IClientHandler.class
+/bin/protocol/ClientConnection$ReadWorker.class
+/bin/protocol/ClientConnection.class
+/bin/protocol/Attribute.class
