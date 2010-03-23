@@ -4,7 +4,6 @@ import java.util.StringTokenizer;
 
 public class Sandbox
 {
-
     /**
      * @param args
      */
@@ -16,5 +15,4 @@ public class Sandbox
         while (tk.hasMoreTokens())
             System.out.println(":" + tk.nextToken());
     }
-
 }

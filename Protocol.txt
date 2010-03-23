@@ -19,7 +19,7 @@ Server ID:    RingNumber.ServerNumber
 Client ID:    [Room].ClientNumber     Salt is used to randomize fallback server
 Message ID:   [Client ID]:Number      Number should be strictly increasing for subsequent messages from same client
 
-UTC timestamp: [POSIX time].[milliseconds]
+UTC timestamp: [milliseconds since epoch as Int64]
 
 ================================================================================
 Ring protocol

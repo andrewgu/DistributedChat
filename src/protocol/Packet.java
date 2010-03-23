@@ -19,15 +19,16 @@ public class Packet
         this.attributes = new TreeMap<String, Attribute>();
         this.body = null;
     }
-    
-    public static Packet parsePacket(String data)
+
+	public static Packet parsePacket(String data)
     {
         StringTokenizer t = new StringTokenizer(data, DELIMITER, true);
         
         if (!t.hasMoreTokens())
             return null;
         
-        Packet p = new Packet(t.nextToken());
+        String typeEscaped = t.nextToken();
+        Packet p = new Packet(typeEscaped.replace("\\n", "\n"));
         
         if (!t.hasMoreTokens() || t.nextToken() != DELIMITER)
             return null;
@@ -42,7 +43,7 @@ public class Packet
             // Not a \n, so parse the attribute.
             Attribute a = Attribute.parseAttribute(token);
             
-            // But only add if the line is terminated properly.
+            // But only add if the line is terminated properly and attribute is valid.
             if (a == null || !t.hasMoreTokens() || t.nextToken() != DELIMITER)
                 return null;
             else
@@ -69,7 +70,8 @@ public class Packet
         StringBuilder bldr = new StringBuilder();
         
         // Type
-        bldr.append(type);
+        String typeEscaped = type.replace("\n", "\\n");
+        bldr.append(typeEscaped);
         bldr.append('\n');
         
         // Attributes
