@@ -1,9 +1,7 @@
 package protocol;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
 
 public class ServerPriorityListing
 {
@@ -73,7 +71,7 @@ public class ServerPriorityListing
 		this.priority = priority;
 	}
 
-	public static final IParser<ServerPriorityListing[]> MULTI_PARSER = new MultiParser();
+	/*public static final IParser<ServerPriorityListing[]> MULTI_PARSER = new MultiParser();
 	public static final IParser<ServerPriorityListing> PARSER = new Parser();
 	
 	private static class MultiParser implements IParser<ServerPriorityListing[]>
@@ -107,5 +105,5 @@ public class ServerPriorityListing
 		{
 			return new ServerPriorityListing(value);
 		}	
-	}
+	}*/
 }

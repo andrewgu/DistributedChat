@@ -1,7 +1,10 @@
 package protocol;
 
+import java.util.regex.Pattern;
+
 public class ClientID
 {
+	private static final Pattern ROOM_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9\\_]+$");
 	private String room;
 	private int client;
 	
@@ -14,11 +17,18 @@ public class ClientID
 	public ClientID(String data) throws ParseException
 	{
 		String[] parts = data.split(".");
-		if (parts.length != 2)
+		if (parts.length != 2 || !ROOM_NAME_PATTERN.matcher(parts[0]).matches())
 			throw new ParseException("Input string is not a valid ClientID.");
 		
 		this.room = parts[0];
-		this.client = Integer.parseInt(parts[1]);
+		try
+		{
+			this.client = Integer.parseInt(parts[1]);
+		}
+		catch (NumberFormatException e)
+		{
+			throw new ParseException("Input string is not a valid ClientID.", e);
+		}
 	}
 
 	public void setRoom(String room)
@@ -45,16 +55,5 @@ public class ClientID
 	public String toString()
 	{
 		return room + "." + client;
-	}
-	
-	public static final IParser<ClientID> PARSER = new Parser();
-	
-	private static class Parser implements IParser<ClientID>
-	{
-		@Override
-		public ClientID parse(String value) throws ParseException
-		{
-			return new ClientID(value);
-		}
 	}
 }

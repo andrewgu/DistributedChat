@@ -1,7 +1,5 @@
 package protocol;
 
-import java.io.IOException;
-
 public class Attribute
 {
     private String name;
@@ -37,7 +35,7 @@ public class Attribute
         this.value = Double.toString(value);
     }
     
-    public Attribute(String name, Object obj)
+    public <T> Attribute(String name, T obj)
     {
     	this.name = name;
     	this.value = obj.toString();
@@ -75,11 +73,6 @@ public class Attribute
     public String getString()
     {
         return value;
-    }
-    
-    public <T> T get(IParser<T> parser) throws IOException
-    {
-    	return parser.parse(value);
     }
     
     public String[] getSplit(String splitRegex)

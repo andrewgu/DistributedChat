@@ -11,8 +11,15 @@ public class ServerID
 		if (parts.length != 2)
 			throw new ParseException("Input string is not a valid ServerID.");
 		
-		this.ring = Integer.parseInt(parts[0]);
-		this.server = Integer.parseInt(parts[1]);
+		try
+		{
+			this.ring = Integer.parseInt(parts[0]);
+			this.server = Integer.parseInt(parts[1]);
+		}
+		catch (NumberFormatException e)
+		{
+			throw new ParseException("Input string is not a valid ServerID.", e);
+		}
 	}
 	
 	public ServerID(int ring, int server)
@@ -45,16 +52,5 @@ public class ServerID
 	public String toString()
 	{
 		return ring + "." + server;
-	}
-	
-	public static final IParser<ServerID> PARSER = new Parser();
-	
-	private static class Parser implements IParser<ServerID>
-	{
-		@Override
-		public ServerID parse(String value) throws ParseException
-		{
-			return new ServerID(value);
-		}
 	}
 }

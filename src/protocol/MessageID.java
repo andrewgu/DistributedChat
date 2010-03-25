@@ -17,8 +17,19 @@ public class MessageID
 		if (parts.length != 2)
 			throw new ParseException("Input string is not a valid MessageID.");
 		
-		this.client = new ClientID(parts[0]);
-		this.messageNumber = Integer.parseInt(parts[1]);
+		try
+		{
+			this.client = new ClientID(parts[0]);
+			this.messageNumber = Integer.parseInt(parts[1]);
+		}
+		catch (NumberFormatException e)
+		{
+			throw new ParseException("Input string is not a valid MessageID.", e);
+		}
+		catch (ParseException e)
+		{
+			throw new ParseException("Input string is not a valid MessageID.", e);
+		}
 	}
 	
 	public void setClient(ClientID client)
@@ -39,16 +50,5 @@ public class MessageID
 	public void setMessageNumber(int messageNumber)
 	{
 		this.messageNumber = messageNumber;
-	}
-	
-	public static final IParser<MessageID> PARSER = new Parser();
-	
-	private static class Parser implements IParser<MessageID>
-	{
-		@Override
-		public MessageID parse(String value) throws ParseException
-		{
-			return new MessageID(value);
-		}
 	}
 }
