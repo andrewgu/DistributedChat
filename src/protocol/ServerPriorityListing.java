@@ -10,16 +10,31 @@ public class ServerPriorityListing
 	private int port;
 	private int priority;
 	
-	public ServerPriorityListing(String data) throws UnknownHostException, ParseException
+	public ServerPriorityListing(String data) throws ParseException
 	{
 		String[] parts = data.split(" ");
 		if (parts.length != 4)
 			throw new ParseException("Input string is not a valid ServerListing.");
 		
-		this.priority = Integer.parseInt(parts[0]);
-		this.id = new ServerID(parts[1]);
-		this.address = InetAddress.getByName(parts[2]);
-		this.port = Integer.parseInt(parts[3]);
+		try
+		{
+			this.priority = Integer.parseInt(parts[0]);
+			this.id = new ServerID(parts[1]);
+			this.address = InetAddress.getByName(parts[2]);
+			this.port = Integer.parseInt(parts[3]);
+		}
+		catch (UnknownHostException e)
+		{
+			throw new ParseException("Input string is not a valid ServerListing.");
+		}
+		catch (NumberFormatException e)
+		{
+			throw new ParseException("Input string is not a valid ServerListing.");
+		}
+		catch (ParseException e)
+		{
+			throw new ParseException("Input string is not a valid ServerListing.");
+		}
 	}
 
 	public ServerPriorityListing(ServerID id, InetAddress address, int port,
