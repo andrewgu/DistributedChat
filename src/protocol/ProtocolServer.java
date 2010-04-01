@@ -1,8 +1,7 @@
 package protocol;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
+import java.net.UnknownHostException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.channels.ClosedChannelException;
@@ -13,15 +12,72 @@ import org.xsocket.connection.IConnectHandler;
 import org.xsocket.connection.IDataHandler;
 import org.xsocket.connection.IDisconnectHandler;
 import org.xsocket.connection.INonBlockingConnection;
+import org.xsocket.connection.Server;
 
 public class ProtocolServer<_ATTACHMENT> implements 
     IConnectHandler, IDataHandler, IDisconnectHandler
 {   
     private IServerHandler<_ATTACHMENT> handler;
+    private Server server;
 
-    public ProtocolServer(int port, int threads, IServerHandler<_ATTACHMENT> handler)
+    public ProtocolServer(int port, int threads, IServerHandler<_ATTACHMENT> handler) throws UnknownHostException, IOException
     {
         this.handler = handler;
+        this.server = new Server(port, this, 1, threads);
+    }
+    
+    public void run()
+    {
+    	server.run();
+    }
+    
+    public void start() throws IOException
+    {
+    	server.start();
+    }
+    
+    public void stop()
+    {
+    	server.close();
+    }
+    
+    @Override
+    public boolean onConnect(INonBlockingConnection connection) throws IOException,
+            BufferUnderflowException, MaxReadSizeExceededException
+    {
+        INonBlockingConnection sconn = ConnectionUtils.synchronizedConnection(connection);
+        ServerConnection sc = new ServerConnection(sconn, this.handler);
+        sconn.setAttachment(sc);
+        sc.notifyConnected();
+        return true;
+    }
+
+    @Override
+    public boolean onData(INonBlockingConnection connection) throws IOException,
+            BufferUnderflowException, ClosedChannelException,
+            MaxReadSizeExceededException
+    {
+        INonBlockingConnection sconn = ConnectionUtils.synchronizedConnection(connection);
+        Object attachment = sconn.getAttachment();
+        if (attachment == null)
+            throw new IOException("Error: ServerConnection object wasn't attached to xSocket connection.");
+        ServerConnection sc = (ServerConnection)attachment;
+        
+        sc.notifyData();
+        return true;
+    }
+
+    @Override
+    public boolean onDisconnect(INonBlockingConnection connection) throws IOException
+    {
+        INonBlockingConnection sconn = ConnectionUtils.synchronizedConnection(connection);
+        Object attachment = sconn.getAttachment();
+        if (attachment == null)
+            throw new IOException("Error: ServerConnection object wasn't attached to xSocket connection.");
+        ServerConnection sc = (ServerConnection)attachment;
+        
+        sc.close();
+        return true;
     }
     
     private class ServerConnection implements IServerConnection<_ATTACHMENT>
@@ -29,10 +85,13 @@ public class ProtocolServer<_ATTACHMENT> implements
         private INonBlockingConnection sconn;
         private _ATTACHMENT attachment;
         private IServerHandler<_ATTACHMENT> handler;
-        private PacketWriter writer;
         
-        //private static final int INITIAL_READ_BUFFER_SIZE = 256;
-        //private byte[] buffer;
+        private PacketWriter writer;
+        private PacketReader reader;
+        
+        //private static final int INITIAL_BUFFER_SIZE = 1024;
+        private static final int MAX_PACKET_SIZE = 1048576;
+        //private byte[] dataBuffer;
         
         private ServerConnection(INonBlockingConnection syncedConnection, IServerHandler<_ATTACHMENT> handler) throws IOException
         {
@@ -43,8 +102,9 @@ public class ProtocolServer<_ATTACHMENT> implements
             this.handler = handler;
             
             this.writer = new PacketWriter();
+            this.reader = new PacketReader();
             
-            //this.buffer = new byte[INITIAL_READ_BUFFER_SIZE];
+            //this.dataBuffer = new byte[INITIAL_BUFFER_SIZE];
         }
         
         public void sendPacket(ISendable packet) throws IOException
@@ -96,6 +156,7 @@ public class ProtocolServer<_ATTACHMENT> implements
             }
             catch (BufferUnderflowException e)
             {
+            	// Jump here when out of packets.
                 this.sconn.resetToReadMark();
             }
             catch (IOException e)
@@ -108,59 +169,19 @@ public class ProtocolServer<_ATTACHMENT> implements
         private void readPacket() throws BufferUnderflowException, IOException
         {
             int length = this.sconn.readInt();
+            if (length > MAX_PACKET_SIZE)
+            	throw new IOException("Packet size exceeds maximum allowed packet size.");
+            
             byte[] data = this.sconn.readBytesByLength(length);
-            
             assert(data.length == length);
+            reader.setBytes(data, 0, length);
             
-            ByteArrayInputStream bis = new ByteArrayInputStream(data);
-            ObjectInputStream ois = new ObjectInputStream(bis);
-            
-            try
-			{
-				handler.onPacket(this, (ISendable)ois.readObject());
-			}
-			catch (ClassNotFoundException e)
-			{
-				throw new IOException("Class not found.", e);
-			}
+			handler.onPacket(this, reader.readPacket());
         }
-    }
 
-    @Override
-    public boolean onConnect(INonBlockingConnection connection) throws IOException,
-            BufferUnderflowException, MaxReadSizeExceededException
-    {
-        INonBlockingConnection sconn = ConnectionUtils.synchronizedConnection(connection);
-        ServerConnection sc = new ServerConnection(sconn, this.handler);
-        sconn.setAttachment(sc);
-        return true;
-    }
-
-    @Override
-    public boolean onData(INonBlockingConnection connection) throws IOException,
-            BufferUnderflowException, ClosedChannelException,
-            MaxReadSizeExceededException
-    {
-        INonBlockingConnection sconn = ConnectionUtils.synchronizedConnection(connection);
-        Object attachment = sconn.getAttachment();
-        if (attachment == null)
-            throw new IOException("Error: ServerConnection object wasn't attached to xSocket connection.");
-        ServerConnection sc = (ServerConnection)attachment;
-        
-        sc.notifyData();
-        return true;
-    }
-
-    @Override
-    public boolean onDisconnect(INonBlockingConnection connection) throws IOException
-    {
-        INonBlockingConnection sconn = ConnectionUtils.synchronizedConnection(connection);
-        Object attachment = sconn.getAttachment();
-        if (attachment == null)
-            throw new IOException("Error: ServerConnection object wasn't attached to xSocket connection.");
-        ServerConnection sc = (ServerConnection)attachment;
-        
-        sc.close();
-        return true;
+		private void notifyConnected()
+		{
+			handler.onConnect(this);
+		}
     }
 }

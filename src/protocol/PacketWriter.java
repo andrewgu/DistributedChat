@@ -22,4 +22,16 @@ public class PacketWriter
 		oout.writeObject(sendable);
 		return bout.toByteArray();
 	}
+	
+	public void close()
+	{
+		try
+		{
+			oout.close();
+		}
+		catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+	}
 }

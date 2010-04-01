@@ -3,43 +3,39 @@ package protocol;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.Socket;
 
 public class ClientConnection
 {
     private Socket socket;
-    private InputStream readStream;
-    private OutputStream writeStream;
+    private DataInputStream dis;
+    private DataOutputStream dos;
+    
     private IClientHandler handler;
     private boolean closed;
     
-    private DataInputStream dis;
-    private DataOutputStream dos;
-    private ObjectInputStream ois;
+    private static final int INITIAL_BUFFER_SIZE = 1024;
+    private static final int MAX_BUFFER_SIZE = 1048576;
+    private byte[] dataBuffer;
     
+    private PacketReader reader;
     private PacketWriter writer;
     
     public ClientConnection(InetAddress host, int port, 
             IClientHandler handler) throws IOException
     {
         this.socket = new Socket(host, port);
-        this.readStream = socket.getInputStream();
-        this.writeStream = socket.getOutputStream();
         this.handler = handler;
         this.closed = false;
         
-        this.dis = new DataInputStream(readStream);
-        this.dos = new DataOutputStream(writeStream);
-        this.ois = new ObjectInputStream(this.dis);
+        this.dis = new DataInputStream(socket.getInputStream());
+        this.dos = new DataOutputStream(socket.getOutputStream());
         
+        this.dataBuffer = new byte[INITIAL_BUFFER_SIZE];
+        
+        this.reader = new PacketReader();
         this.writer = new PacketWriter();
-        
-        // Spawn a worker thread for reading.
-        new Thread(new ReadWorker(this)).start();
     }
     
     public synchronized boolean isOpen()
@@ -49,22 +45,24 @@ public class ClientConnection
     
     public synchronized void close()
     {
-        // Tells worker thread to cancel.
-        if (!closed)
-        {
-            closed = true;
-            // Try to clean up.
-            try
-            {
-                socket.close();
-            }
-            catch (IOException e)
-            {   
-            }
-        }
+    	if (!closed)
+    	{
+    		closed = true;
+    		this.reader.close();
+    		this.writer.close();
+    		
+    		try
+			{
+				this.socket.close();
+			}
+			catch (IOException e)
+			{
+				e.printStackTrace();
+			}
+    	}
     }
     
-    public void sendPacket(ISendable sendable) throws IOException
+    public synchronized void sendPacket(ISendable sendable) throws IOException
     {
         if (closed)
             throw new IOException("Connection is closed.");
@@ -82,46 +80,48 @@ public class ClientConnection
         }
     }
     
-    private void readPacket() throws IOException
-    {
+    public synchronized void readPacket() throws IOException
+    {    	
     	// Has side effects.
-        dis.readInt();
+    	int len = dis.readInt();
+        while (dataBuffer.length < len)
+        {
+        	if (dataBuffer.length >= MAX_BUFFER_SIZE)
+        		throw new IOException("ClientConnection's internal data buffer size limit has been exceeded.");
+        	dataBuffer = new byte[dataBuffer.length * 2];
+        }
         
-        try
-		{
-			handler.onPacket(this, (ISendable)ois.readObject());
-		}
-		catch (ClassNotFoundException e)
-		{
-			throw new IOException("Class not found.", e);
-		}
+        int read = 0;
+        while (read < len)
+        	read += dis.read(dataBuffer, read, len - read);
+        reader.setBytes(dataBuffer, 0, len);
+		handler.onPacket(this, reader.readPacket());
     }
     
-    private class ReadWorker implements Runnable
+    public void readLoop()
     {
-        private ClientConnection parent;
-        
-        public ReadWorker(ClientConnection parent)
-        {
-            this.parent = parent;
-        }
-        
-        @Override
-        public void run()
-        {
-            try
-            {
-                while (!closed)
-                {
-                    readPacket();
-                }
-            }
-            catch (IOException e)
-            {
-                close();
-            }
-            
-            handler.onConnectionClosed(parent);
-        }
+    	while (!closed)
+    	{
+    		try
+			{
+				readPacket();
+			}
+			catch (IOException e)
+			{
+				close();
+			}
+    	}
+    }
+    
+    public Thread startReadLoop()
+    {
+    	return new Thread(new Runnable()
+		{
+			@Override
+			public void run()
+			{
+				readLoop();
+			}
+		});
     }
 }
