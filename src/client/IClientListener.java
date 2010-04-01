@@ -1,7 +1,7 @@
 package client;
 
-import protocol.MessageData;
-import protocol.StatusUpdate;
+import protocol.packets.MessageData;
+import protocol.packets.StatusUpdate;
 
 public interface IClientListener
 {

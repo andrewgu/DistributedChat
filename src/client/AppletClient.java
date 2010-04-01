@@ -10,9 +10,9 @@ import javax.swing.text.html.HTMLDocument;
 import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.text.html.StyleSheet;
 
-import protocol.MessageData;
-import protocol.MessageID;
-import protocol.StatusUpdate;
+import protocol.data.MessageID;
+import protocol.packets.MessageData;
+import protocol.packets.StatusUpdate;
 
 @SuppressWarnings("serial")
 public class AppletClient extends javax.swing.JApplet

@@ -1,6 +1,8 @@
 package protocol;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.channels.ClosedChannelException;
@@ -27,11 +29,12 @@ public class ProtocolServer<_ATTACHMENT> implements
         private INonBlockingConnection sconn;
         private _ATTACHMENT attachment;
         private IServerHandler<_ATTACHMENT> handler;
+        private PacketWriter writer;
         
         //private static final int INITIAL_READ_BUFFER_SIZE = 256;
         //private byte[] buffer;
         
-        private ServerConnection(INonBlockingConnection syncedConnection, IServerHandler<_ATTACHMENT> handler)
+        private ServerConnection(INonBlockingConnection syncedConnection, IServerHandler<_ATTACHMENT> handler) throws IOException
         {
             this.sconn = syncedConnection;
             //this.sconn.setAutoflush(false);
@@ -39,14 +42,17 @@ public class ProtocolServer<_ATTACHMENT> implements
             this.attachment = null;
             this.handler = handler;
             
+            this.writer = new PacketWriter();
+            
             //this.buffer = new byte[INITIAL_READ_BUFFER_SIZE];
         }
         
-        public void sendPacket(Packet p) throws IOException
+        public void sendPacket(ISendable packet) throws IOException
         {
             try
             {
-                byte[] data = p.toString().getBytes("US-ASCII");
+                byte[] data = writer.getSerializedData(packet);
+                this.sconn.write(data.length);
                 this.sconn.write(data, 0, data.length);
                 //this.sconn.flush();
             }
@@ -106,8 +112,17 @@ public class ProtocolServer<_ATTACHMENT> implements
             
             assert(data.length == length);
             
-            Packet p = Packet.parsePacket(new String(data, 0, length, "US-ASCII"));
-            handler.onPacket(this, p);
+            ByteArrayInputStream bis = new ByteArrayInputStream(data);
+            ObjectInputStream ois = new ObjectInputStream(bis);
+            
+            try
+			{
+				handler.onPacket(this, (ISendable)ois.readObject());
+			}
+			catch (ClassNotFoundException e)
+			{
+				throw new IOException("Class not found.", e);
+			}
         }
     }
 

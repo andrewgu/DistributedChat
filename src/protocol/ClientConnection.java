@@ -4,14 +4,13 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.Socket;
 
 public class ClientConnection
 {
-    private static final int INITIAL_PACKET_BUFFER_SIZE = 256;
-    
     private Socket socket;
     private InputStream readStream;
     private OutputStream writeStream;
@@ -20,9 +19,10 @@ public class ClientConnection
     
     private DataInputStream dis;
     private DataOutputStream dos;
+    private ObjectInputStream ois;
     
-    private byte[] buffer;
-
+    private PacketWriter writer;
+    
     public ClientConnection(InetAddress host, int port, 
             IClientHandler handler) throws IOException
     {
@@ -34,8 +34,9 @@ public class ClientConnection
         
         this.dis = new DataInputStream(readStream);
         this.dos = new DataOutputStream(writeStream);
+        this.ois = new ObjectInputStream(this.dis);
         
-        this.buffer = new byte[INITIAL_PACKET_BUFFER_SIZE];
+        this.writer = new PacketWriter();
         
         // Spawn a worker thread for reading.
         new Thread(new ReadWorker(this)).start();
@@ -63,14 +64,16 @@ public class ClientConnection
         }
     }
     
-    public void sendPacket(Packet p) throws IOException
+    public void sendPacket(ISendable sendable) throws IOException
     {
         if (closed)
             throw new IOException("Connection is closed.");
         
         try
         {
-            dos.write(p.toString().getBytes("US-ASCII"));
+        	byte[] data = writer.getSerializedData(sendable);
+        	dos.writeInt(data.length);
+            dos.write(data);
         }
         catch (IOException e)
         {
@@ -81,21 +84,17 @@ public class ClientConnection
     
     private void readPacket() throws IOException
     {
-        int length = dis.readInt();
+    	// Has side effects.
+        dis.readInt();
         
-        // Dynamically grow buffer, but only if necessary.
-        if (length > buffer.length)
-            buffer = new byte[buffer.length * 2];
-        
-        // keep reading until we get the entire packet.
-        int read = 0;
-        while (read < length)
-        {
-            read += dis.read(buffer, read, length - read);
-        }
-        
-        Packet p = Packet.parsePacket(new String(buffer, 0, length, "US-ASCII"));
-        handler.onPacket(this, p);
+        try
+		{
+			handler.onPacket(this, (ISendable)ois.readObject());
+		}
+		catch (ClassNotFoundException e)
+		{
+			throw new IOException("Class not found.", e);
+		}
     }
     
     private class ReadWorker implements Runnable
