@@ -1,6 +1,7 @@
 package client;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 
 import javax.swing.text.AbstractDocument;
 import javax.swing.text.BadLocationException;
@@ -37,16 +38,19 @@ public class AppletClient extends javax.swing.JApplet
 					try
 					{
 						initDocument();
+						initComponents();
+						initClient();
 					}
 					catch (BadLocationException e)
 					{
-						// TODO Auto-generated catch block
 						e.printStackTrace();
 						System.exit(1);
 					}
-					initComponents();
-					
-					initClient();
+					catch (UnknownHostException e)
+					{
+						e.printStackTrace();
+						System.exit(1);
+					}
 				}
 			});
 		}
@@ -56,7 +60,7 @@ public class AppletClient extends javax.swing.JApplet
 		}
 	}
 	
-	private void initClient()
+	private void initClient() throws UnknownHostException
 	{
 		String host = this.getParameter("host");
 		int port = Integer.parseInt(this.getParameter("port"));
@@ -151,7 +155,7 @@ public class AppletClient extends javax.swing.JApplet
 		
 		try
 		{
-			this.client.start();
+			this.client.connect();
 			writeStatusMessage("Started!");
 		}
 		catch (IOException e)

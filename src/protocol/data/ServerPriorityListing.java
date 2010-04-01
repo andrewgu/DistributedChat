@@ -2,7 +2,7 @@ package protocol.data;
 
 import java.io.Serializable;
 
-public class ServerPriorityListing implements Serializable
+public class ServerPriorityListing implements Serializable, Comparable<ServerPriorityListing>
 {
 	private static final long serialVersionUID = 1L;
 	
@@ -46,5 +46,11 @@ public class ServerPriorityListing implements Serializable
 	public void setAddress(ServerAddress address)
 	{
 		this.address = address;
+	}
+
+	@Override
+	public int compareTo(ServerPriorityListing o)
+	{
+		return this.getPriority() - o.getPriority();
 	}
 }
