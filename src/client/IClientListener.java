@@ -1,7 +1,6 @@
 package client;
 
 import protocol.packets.MessageData;
-import protocol.packets.StatusUpdate;
 
 public interface IClientListener
 {
@@ -12,6 +11,4 @@ public interface IClientListener
 	
 	// Called if the client receives a message update.
 	void onMessage(MessageData message);
-	// Called if the client receives a status update.
-	void onStatusUpdate(StatusUpdate status);
 }

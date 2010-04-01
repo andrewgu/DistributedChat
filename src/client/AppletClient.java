@@ -12,7 +12,6 @@ import javax.swing.text.html.StyleSheet;
 
 import protocol.data.MessageID;
 import protocol.packets.MessageData;
-import protocol.packets.StatusUpdate;
 
 @SuppressWarnings("serial")
 public class AppletClient extends javax.swing.JApplet
@@ -25,6 +24,7 @@ public class AppletClient extends javax.swing.JApplet
 	
 	private HTMLDocument chatDoc;
 	private Element bodyElement;
+	private Client client;
 	
 	/** Initializes the applet AppletClient */
 	public void init()
@@ -45,6 +45,8 @@ public class AppletClient extends javax.swing.JApplet
 						System.exit(1);
 					}
 					initComponents();
+					
+					initClient();
 				}
 			});
 		}
@@ -52,6 +54,18 @@ public class AppletClient extends javax.swing.JApplet
 		{
 			ex.printStackTrace();
 		}
+	}
+	
+	private void initClient()
+	{
+		String host = this.getParameter("host");
+		int port = Integer.parseInt(this.getParameter("port"));
+		String room = this.getParameter("room");
+		String alias = this.getParameter("alias");
+		
+		IClientListener listener = new ClientListener();
+		
+		this.client = new Client(host, port, room, alias, listener);
 	}
 	
 	private void initDocument() throws BadLocationException
@@ -137,11 +151,11 @@ public class AppletClient extends javax.swing.JApplet
 		
 		try
 		{
+			this.client.start();
 			writeStatusMessage("Started!");
 		}
 		catch (IOException e)
 		{
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
@@ -150,19 +164,6 @@ public class AppletClient extends javax.swing.JApplet
 	public void stop()
 	{
 		super.stop();
-	}
-	
-	private void writeChatMessage(MessageID messageID, long timestamp, String senderAlias, String message) throws IOException
-	{
-		try
-		{
-			chatDoc.insertBeforeEnd(bodyElement, "<div class=\"message\" id=\"" + getMessageIdAttribute(messageID) + "\"><span class=\"sender\">"
-					+ htmlEscape(senderAlias) + "</span><span class=\"says\">says:</span><br><span class=\"msgbody\">" + message + "</span></div>");
-		}
-		catch (BadLocationException e)
-		{
-			e.printStackTrace();
-		}
 	}
 	
 	private static String htmlEscape(String string) 
@@ -224,7 +225,7 @@ public class AppletClient extends javax.swing.JApplet
 
 	private static String getMessageIdAttribute(MessageID messageID)
 	{
-		return messageID.getClient().getRoom() + "-" + messageID.getClient().getClient() + "-" + messageID.getMessageNumber();
+		return messageID.getClientID().getRoom() + "-" + messageID.getClientID().getClient() + "-" + messageID.getMessageNumber();
 	}
 
 	private void writeStatusMessage(String message) throws IOException
@@ -239,44 +240,77 @@ public class AppletClient extends javax.swing.JApplet
 		}
 	}
 	
-	private void writeErrorMessage(String message) throws IOException
+	private void writeErrorMessage(String message)
 	{
 		try
 		{
 			chatDoc.insertBeforeEnd(bodyElement, "<div class=\"error\">" + htmlEscape(message) + "</div>");
 		}
+		catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+		catch (BadLocationException e)
+		{
+			e.printStackTrace();
+		}		
+	}
+	
+	private void writeChatMessage(MessageID messageID, long timestamp, String senderAlias, String message) throws IOException
+	{
+		try
+		{
+			chatDoc.insertBeforeEnd(bodyElement, "<div class=\"message\" id=\"" + getMessageIdAttribute(messageID) + "\"><span class=\"sender\">"
+					+ htmlEscape(senderAlias) + "</span><span class=\"says\">says:</span><br><span class=\"msgbody\">" + message + "</span></div>");
+		}
 		catch (BadLocationException e)
 		{
 			e.printStackTrace();
 		}
-		
 	}
 	
 	private class ClientListener implements IClientListener
 	{
-
 		@Override
 		public void onConnected()
 		{
-			
+			try
+			{
+				writeStatusMessage("Connected!");
+			}
+			catch (IOException e)
+			{
+				writeErrorMessage(e.toString());
+				e.printStackTrace();
+			}
 		}
 
 		@Override
 		public void onDropped()
 		{
-			
+			try
+			{
+				writeStatusMessage("Connection was dropped.");
+			}
+			catch (IOException e)
+			{
+				writeErrorMessage(e.toString());
+				e.printStackTrace();
+			}
 		}
 
 		@Override
 		public void onMessage(MessageData message)
 		{
-			
-		}
-
-		@Override
-		public void onStatusUpdate(StatusUpdate status)
-		{
-			
+			try
+			{
+				writeChatMessage(message.getMessageID(), message.getTimestamp(), message.getAlias(), message.getMessage());
+			}
+			catch (IOException e)
+			{
+				writeErrorMessage(e.toString());
+				e.printStackTrace();
+			}
 		}
 	}
 }
