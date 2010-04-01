@@ -9,10 +9,21 @@ public class PacketWriter
 	private ByteArrayOutputStream bout;
 	private ObjectOutputStream oout;
 	
-	public PacketWriter() throws IOException
+	public PacketWriter()
 	{
 		bout = new ByteArrayOutputStream();
+		oout = null;
+	}
+	
+	public boolean isReady()
+	{
+		return oout != null;
+	}
+	
+	public byte[] getSerializationHeader() throws IOException
+	{
 		oout = new ObjectOutputStream(bout);
+		return bout.toByteArray();
 	}
 	
 	public byte[] getSerializedData(ISendable sendable) throws IOException

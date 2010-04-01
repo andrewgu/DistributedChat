@@ -8,9 +8,20 @@ public class PacketReader
 	private ObjectInputStream ois;
 	private ByteBufferInputStream bis;
 	
-	public PacketReader() throws IOException
+	public PacketReader()
 	{
 		bis = new ByteBufferInputStream();
+		ois = null;
+	}
+	
+	public boolean isReady()
+	{
+		return ois != null;
+	}
+	
+	public void setSerializationHeader(byte[] data, int offset, int length) throws IOException
+	{
+		bis.setBytes(data, offset, length);
 		ois = new ObjectInputStream(bis);
 	}
 	

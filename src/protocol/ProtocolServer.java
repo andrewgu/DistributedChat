@@ -105,6 +105,30 @@ public class ProtocolServer<_ATTACHMENT> implements
             this.reader = new PacketReader();
             
             //this.dataBuffer = new byte[INITIAL_BUFFER_SIZE];
+            
+            prepare();
+        }
+        
+        private void prepare() throws IOException
+        {
+        	// Exchange serialization headers for writer
+           	try
+            {
+           		byte[] data = this.writer.getSerializationHeader();
+                this.sconn.write(data.length);
+                this.sconn.write(data, 0, data.length);
+                //this.sconn.flush();
+            }
+            catch (BufferOverflowException e)
+            {
+                // Make sure to note when BufferOverflowException happens, but we're not sure if it will.
+                assert(false);
+            }
+            catch (IOException e)
+            {
+                close();
+                throw e;
+            }
         }
         
         public void sendPacket(ISendable packet) throws IOException
@@ -174,9 +198,17 @@ public class ProtocolServer<_ATTACHMENT> implements
             
             byte[] data = this.sconn.readBytesByLength(length);
             assert(data.length == length);
-            reader.setBytes(data, 0, length);
             
-			handler.onPacket(this, reader.readPacket());
+            if (reader.isReady())
+            {
+	            reader.setBytes(data, 0, length);
+				handler.onPacket(this, reader.readPacket());
+            }
+            else
+            {
+            	// Initialize the reader by setting the serialization header from the writer on the other end.
+            	reader.setSerializationHeader(data, 0, length);
+            }
         }
 
 		private void notifyConnected()
