@@ -85,6 +85,7 @@ public class ProtocolServer<_ATTACHMENT> implements
         private INonBlockingConnection sconn;
         private _ATTACHMENT attachment;
         private IServerHandler<_ATTACHMENT> handler;
+        private boolean closed;
         
         private PacketWriter writer;
         private PacketReader reader;
@@ -104,14 +105,16 @@ public class ProtocolServer<_ATTACHMENT> implements
             this.writer = new PacketWriter();
             this.reader = new PacketReader();
             
-            //this.dataBuffer = new byte[INITIAL_BUFFER_SIZE];
+            this.closed = false;
             
+            // Exchange serialization headers for writer.
+            // Reader is lazy-initialized on first packet read.
             prepare();
         }
         
         private void prepare() throws IOException
         {
-        	// Exchange serialization headers for writer
+        	// Exchange serialization headers for writer	
            	try
             {
            		byte[] data = this.writer.getSerializationHeader();
@@ -164,7 +167,23 @@ public class ProtocolServer<_ATTACHMENT> implements
         
         public void close()
         {
-            handler.onClose(this);
+        	if (!closed)
+        	{
+        		closed = true;
+	        	try
+				{
+					sconn.close();
+				}
+				catch (IOException e)
+				{
+					e.printStackTrace();
+				}
+				
+				reader.close();
+				writer.close();
+				
+	            handler.onClose(this);
+        	}
         }
         
         private void notifyData()
@@ -202,12 +221,13 @@ public class ProtocolServer<_ATTACHMENT> implements
             if (reader.isReady())
             {
 	            reader.setBytes(data, 0, length);
-				handler.onPacket(this, reader.readPacket());
+				handler.onPacket(this, reader.readObject());
             }
             else
             {
             	// Initialize the reader by setting the serialization header from the writer on the other end.
             	reader.setSerializationHeader(data, 0, length);
+            	readPacket();
             }
         }
 

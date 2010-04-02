@@ -26,7 +26,7 @@ public class ByteBufferInputStream extends InputStream
 		this.mark = 0;
 	}
 	
-	public void reset()
+	public void repeat()
 	{
 		this.mark = 0;
 	}

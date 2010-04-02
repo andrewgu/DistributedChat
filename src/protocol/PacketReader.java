@@ -30,10 +30,11 @@ public class PacketReader
 		bis.setBytes(data, offset, length);
 	}
 	
-	public ISendable readPacket() throws IOException
+	public ISendable readObject() throws IOException
 	{
 		try
 		{
+			bis.repeat();
 			return (ISendable)ois.readObject();
 		}
 		catch (ClassNotFoundException e)
@@ -46,7 +47,8 @@ public class PacketReader
 	{
 		try
 		{
-			ois.close();
+			if (ois != null)
+				ois.close();
 		}
 		catch (IOException e)
 		{

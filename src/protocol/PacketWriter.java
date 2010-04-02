@@ -38,7 +38,8 @@ public class PacketWriter
 	{
 		try
 		{
-			oout.close();
+			if (oout != null)
+				oout.close();
 		}
 		catch (IOException e)
 		{

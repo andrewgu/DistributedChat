@@ -25,41 +25,24 @@ public class ClientConnection
     public ClientConnection(InetAddress host, int port, 
             IClientHandler handler) throws IOException
     {
-        this.socket = new Socket(host, port);
+    	this.socket = new Socket(host, port);
+    	
         this.handler = handler;
         this.closed = false;
-        
+     
         this.dis = new DataInputStream(socket.getInputStream());
-        this.dos = new DataOutputStream(socket.getOutputStream());
-        
-        this.dataBuffer = new byte[INITIAL_BUFFER_SIZE];
-        
-        this.reader = new PacketReader();
-        this.writer = new PacketWriter();
-        
-       	prepare();
-    }
-    
-    private void prepare() throws IOException
-    {
-    	// Exchange serialization headers for writer
-       	byte[] data = this.writer.getSerializationHeader();
-       	this.dos.writeInt(data.length);
-       	this.dos.write(data);
-        
-        // Exchange serialization headers for reader
-    	int len = dis.readInt();
-        while (dataBuffer.length < len)
-        {
-        	if (dataBuffer.length >= MAX_BUFFER_SIZE)
-        		throw new IOException("ClientConnection's internal data buffer size limit has been exceeded.");
-        	dataBuffer = new byte[dataBuffer.length * 2];
-        }
-        
-        int read = 0;
-        while (read < len)
-        	read += dis.read(dataBuffer, read, len - read);
-        reader.setSerializationHeader(dataBuffer, 0, len);
+	    this.dos = new DataOutputStream(socket.getOutputStream());
+
+		this.dataBuffer = new byte[INITIAL_BUFFER_SIZE];
+
+		this.reader = new PacketReader();
+		this.writer = new PacketWriter();
+
+		// Push serialization headers for writer.
+		// Reader will be lazy-initialized on first read.
+		byte[] data = this.writer.getSerializationHeader();
+		this.dos.writeInt(data.length);
+		this.dos.write(data);
     }
     
     public synchronized boolean isOpen()
@@ -83,6 +66,11 @@ public class ClientConnection
 			{
 				e.printStackTrace();
 			}
+			
+			synchronized(handler)
+			{
+				handler.onConnectionClosed(this);
+			}
     	}
     }
     
@@ -104,25 +92,41 @@ public class ClientConnection
         }
     }
     
-    public synchronized void readPacket() throws IOException
-    {    	
-    	// Has side effects.
-    	int len = dis.readInt();
-        while (dataBuffer.length < len)
-        {
-        	if (dataBuffer.length >= MAX_BUFFER_SIZE)
-        		throw new IOException("ClientConnection's internal data buffer size limit has been exceeded.");
-        	dataBuffer = new byte[dataBuffer.length * 2];
-        }
-        
-        int read = 0;
-        while (read < len)
-        	read += dis.read(dataBuffer, read, len - read);
-        reader.setBytes(dataBuffer, 0, len);
-		handler.onPacket(this, reader.readPacket());
+    private void readPacket() throws IOException
+    {
+    	synchronized(reader)
+    	{
+	    	// Has side effects.
+	    	int len = dis.readInt();
+	        while (dataBuffer.length < len)
+	        {
+	        	if (dataBuffer.length >= MAX_BUFFER_SIZE)
+	        		throw new IOException("ClientConnection's internal data buffer size limit has been exceeded.");
+	        	dataBuffer = new byte[dataBuffer.length * 2];
+	        }
+	        
+	        int read = 0;
+	        while (read < len)
+	        	read += dis.read(dataBuffer, read, len - read);
+	        
+	        if (reader.isReady())
+	        {
+	        	reader.setBytes(dataBuffer, 0, len);
+	        	synchronized(handler)
+				{
+	        		handler.onPacket(this, reader.readObject());
+				}
+	        }
+	        else
+	        {
+	        	reader.setSerializationHeader(dataBuffer, 0, len);
+	        	// Retry the read now that the reader is ready.
+	        	readPacket();
+	        }
+    	}
     }
     
-    public void readLoop()
+    private void readLoop()
     {
     	while (!closed)
     	{
@@ -139,7 +143,7 @@ public class ClientConnection
     
     public Thread startReadLoop()
     {
-    	return new Thread(new Runnable()
+    	Thread loop = new Thread(new Runnable()
 		{
 			@Override
 			public void run()
@@ -147,5 +151,7 @@ public class ClientConnection
 				readLoop();
 			}
 		});
+    	loop.start();
+    	return loop;
     }
 }

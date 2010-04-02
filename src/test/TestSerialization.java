@@ -1,3 +1,4 @@
+package test;
 
 
 import java.io.DataInputStream;
@@ -7,14 +8,13 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
-import java.util.StringTokenizer;
 
 import protocol.ISendable;
 import protocol.PacketReader;
 import protocol.PacketWriter;
 import protocol.packets.FindRoom;
 
-public class Sandbox
+public class TestSerialization
 {
     /**
      * @param args
@@ -77,7 +77,7 @@ public class Sandbox
         }
         
         reader.setBytes(buf, 0, len);
-        ISendable s = reader.readPacket();
+        ISendable s = reader.readObject();
         
         if (s instanceof FindRoom)
         	System.out.println("is FindRoom");
