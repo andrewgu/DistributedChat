@@ -5,6 +5,7 @@ public interface IChatClientHandler
 	void onAuthenticated(Client caller);
 	void onConnected(Client caller);
 	void onConnectFailed(Client caller);
+	void onReconnectFailed(Client client);
 	
 	void onDropped(Client caller);
 	void onReconnected(Client caller);

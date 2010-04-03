@@ -22,8 +22,13 @@ import protocol.data.ClientID;
 import protocol.data.MessageID;
 import protocol.data.ServerID;
 import protocol.data.ServerPriorityListing;
+import protocol.packets.ClientConnect;
+import protocol.packets.ClientReconnect;
+import protocol.packets.ConnectAck;
 import protocol.packets.FindRoom;
+import protocol.packets.MessageData;
 import protocol.packets.RoomFound;
+import protocol.packets.SendAck;
 import protocol.packets.SendMessage;
 import protocol.packets.ServerUpdate;
 
@@ -47,11 +52,9 @@ public class Client
 	private String alias;
 	
 	private int maxSendRetries;
-	private int resendDelay;
 	private int sendTimeout;
 	
 	private int maxReconnectRetries;
-	private int reconnectDelay;
 	private int connectTimeout;
 	
 	// Last timestamp when a message was received.
@@ -85,12 +88,12 @@ public class Client
 	
 	public Client(String authHost, int authPort, String room, String alias, IChatClientHandler handler)
 	{
-		this(authHost, authPort, room, alias, 2, 500, 20000, 4, 500, 3000, handler);
+		this(authHost, authPort, room, alias, 2, 20000, 4, 3000, handler);
 	}
 	
 	public Client(String authHost, int authPort, String room, String alias, 
-			int sendRetries, int resendDelay, int sendTimeout,
-			int reconnectRetries, int reconnectDelay, int connectTimeout,
+			int sendRetries, int sendTimeout,
+			int reconnectRetries, int connectTimeout,
 			IChatClientHandler handler)
 	{
 		this.state = State.DISCONNECTED;
@@ -100,10 +103,8 @@ public class Client
 		this.room = room;
 		this.alias = alias;
 		this.maxSendRetries = sendRetries;
-		this.resendDelay = resendDelay;
 		this.sendTimeout = sendTimeout;
 		this.maxReconnectRetries = reconnectRetries;
-		this.reconnectDelay = reconnectDelay;
 		this.connectTimeout = connectTimeout;
 		
 		this.lastAcked = this.lastReceived = getCurrentTimestamp();
@@ -204,12 +205,12 @@ public class Client
 			SendMessage msg = new SendMessage(room, alias, clientID, new MessageID(clientID, getNextMessageNumber()), message);
 			try
 			{
-				sendMessage(msg);
+				sendMessage(msg, this.maxSendRetries);
 			}
 			catch (IOException e)
 			{
-				connectionError();
 				this.delayedSends.add(msg);
+				connectionError();
 			}
 		}
 		else if (state == State.RECONNECTING)
@@ -223,11 +224,11 @@ public class Client
 		}
 	}
 
-	private void sendMessage(SendMessage msg) throws IOException
+	private void sendMessage(SendMessage msg, int triesLeft) throws IOException
 	{
 		connection.sendPacket(msg);
 		this.sendList.put(msg.getMessageID().getMessageNumber(), msg);
-		this.timeoutTimer.schedule(new SendTimeout(this.maxSendRetries-1, this), this.sendTimeout);
+		this.timeoutTimer.schedule(new SendTimeout(triesLeft-1, this, msg.getMessageID().getMessageNumber()), this.sendTimeout);
 	}
 
 	private int getNextMessageNumber()
@@ -253,6 +254,9 @@ public class Client
 	
 	private void authenticationSuccess(RoomFound packet)
 	{
+		if (this.state != State.AUTHENTICATING)
+			System.err.println("Invalid internal state: authenticationSuccess should only be called in AUTHENTICATING state.");
+		
 		authHandler.cancel();
 		authConnection.close();
 		authHandler = null;
@@ -264,34 +268,197 @@ public class Client
 		clientID = packet.getClientID();
 		setFallbackServers(packet.getServerData());
 		
+		tryConnectLoop(this.maxReconnectRetries);
+	}
+	
+	private void tryConnectLoop(int triesLeft)
+	{		
 		this.state = State.CONNECTING;
-		tryConnectLoop();
+		
+		if (!this.fallbacks.isEmpty() && triesLeft > 0)
+		{
+			// Send packet
+			ConnectTimeout timeout = null;
+			try
+			{
+				ServerPriorityListing listing = this.fallbacks.remove();
+				this.connHandler = new ConnectionHandler(this);
+				this.connection = new ClientConnection(listing.getAddress().getHostAddress(), listing.getAddress().getPort(), this.connHandler);
+				
+				timeout = new ConnectTimeout(triesLeft-1, this);
+				this.connHandler.setConnectTimeoutHandler(timeout);
+				this.connection.sendPacket(new ClientConnect(this.clientID, this.room));
+				this.timeoutTimer.schedule(timeout, this.connectTimeout);
+			}
+			catch (IOException e)
+			{
+				connectAttemptFailed(triesLeft-1, timeout);
+			}
+		}
+		else
+		{
+			connectFailed();
+		}
 	}
 	
-	private void tryConnectLoop()
+	private void connectAttemptFailed(int triesLeft, ConnectTimeout timeout)
 	{
-		// TODO: Implement.
+		if (timeout != null)
+			timeout.cancel();
+		if (this.connHandler != null)
+			this.connHandler.cancel();
+		if (this.connection != null)
+			this.connection.close();
+		
+		this.connection = null;
+		this.connHandler = null;
+		
+		tryConnectLoop(triesLeft);
 	}
 	
-	private void tryReconnectLoop()
+	private void connectAttemptSuccess(ConnectAck packet)
 	{
-		// TODO: Implement.
+		this.currentServer = packet.getServers().getSender();
+		setFallbackServers(packet.getServers());
+	
+		this.state = State.CONNECTED;
+		
+		this.lastAcked = this.lastReceived = getCurrentTimestamp();
+		
+		synchronized(this.handler)
+		{
+			this.handler.onConnected(this);
+		}
+	}
+	
+	private void tryReconnectLoop(int triesLeft)
+	{
+		this.state = State.RECONNECTING;
+		
+		if (!this.fallbacks.isEmpty() && triesLeft > 0)
+		{
+			// Send packet
+			ReconnectTimeout timeout = null;
+			try
+			{
+				ServerPriorityListing listing = this.fallbacks.remove();
+				this.connHandler = new ConnectionHandler(this);
+				this.connection = new ClientConnection(listing.getAddress().getHostAddress(), listing.getAddress().getPort(), this.connHandler);
+				
+				timeout = new ReconnectTimeout(triesLeft-1, this);
+				this.connHandler.setReconnectTimeoutHandler(timeout);
+				this.connection.sendPacket(new ClientReconnect(this.clientID, this.room, this.lastAcked, this.lastReceived));
+				this.timeoutTimer.schedule(timeout, this.connectTimeout);
+			}
+			catch (IOException e)
+			{
+				reconnectAttemptFailed(triesLeft-1, timeout);
+			}
+		}
+		else
+		{
+			reconnectFailed();
+		}
+	}
+	
+	private void reconnectAttemptFailed(int triesLeft, ReconnectTimeout timeout)
+	{
+		if (timeout != null)
+			timeout.cancel();
+		if (this.connHandler != null)
+			this.connHandler.cancel();
+		if (this.connection != null)
+			this.connection.close();
+		
+		this.connection = null;
+		this.connHandler = null;
+		
+		tryReconnectLoop(triesLeft);
+	}
+	
+	private void reconnectAttemptSuccess(ConnectAck packet)
+	{	
+		this.currentServer = packet.getServers().getSender();
+		setFallbackServers(packet.getServers());
+	
+		this.state = State.CONNECTED;
+		
+		synchronized(this.handler)
+		{
+			this.handler.onReconnected(this);
+		}
+		
+		try
+		{
+			clearDelaySendQueue();
+		}
+		catch (IOException e)
+		{
+			connectionError();
+		}
+	}
+	
+	private void connectFailed()
+	{
+		synchronized(this.handler)
+		{
+			this.handler.onConnectFailed(this);
+		}
+		
+		disconnect();
+	}
+	
+	private void reconnectFailed()
+	{
+		synchronized(this.handler)
+		{
+			this.handler.onReconnectFailed(this);
+		}
+		
+		disconnect();
 	}
 	
 	private void connectionError()
 	{
-		// TODO Auto-generated method stub
+		if (this.state != State.CONNECTED)
+			System.err.println("Internal state error: should not call connectionError except when in CONNECTED state.");
 		
+		this.connHandler.cancel();
+		this.connection.close();
+		this.connHandler = null;
+		this.connection = null;
+		this.currentServer = null;
+		
+		tryReconnectLoop(this.maxReconnectRetries);
 	}
+	
 	
 	private void clearDelaySendQueue() throws IOException
 	{
 		while (!this.delayedSends.isEmpty())
 		{
 			SendMessage msg = this.delayedSends.peek();
-			sendMessage(msg);
+			sendMessage(msg, this.maxSendRetries);
 			this.delayedSends.remove();
 		}
+	}
+	
+	private void sendFailed()
+	{
+		// TODO Auto-generated method stub
+		
+	}
+	
+	private void sendAcknowledged(SendAck packet)
+	{
+		// TODO Auto-generated method stub
+		
+	}
+
+	private void receivedMessage(MessageData md)
+	{
+		// TODO Auto-generated method stub
+		
 	}
 
 	private void setFallbackServers(ServerUpdate serverData)
@@ -370,11 +537,26 @@ public class Client
 	{
 		private boolean cancel;
 		private Client parent;
-				
+		
+		private ConnectTimeout connectTimeout;
+		private ReconnectTimeout reconnectTimeout;
+
 		public ConnectionHandler(Client parent)
 		{
 			this.parent = parent;
 			this.cancel = false;
+			this.connectTimeout = null;
+			this.reconnectTimeout = null;
+		}
+
+		private synchronized void setConnectTimeoutHandler(ConnectTimeout connectTimeout)
+		{
+			this.connectTimeout = connectTimeout;
+		}
+		
+		private synchronized void setReconnectTimeoutHandler(ReconnectTimeout reconnectTimeout)
+		{
+			this.reconnectTimeout = reconnectTimeout;
 		}
 
 		@Override
@@ -392,9 +574,42 @@ public class Client
 			synchronized(parent)
 			{
 				if (cancel) return;
+				
+				switch (packet.getPacketType())
+				{
+				case CONNECT_ACK:
+					if (connectTimeout != null && reconnectTimeout == null)
+					{
+						connectTimeout.cancel();
+						connectTimeout = null;
+						connectAttemptSuccess((ConnectAck)packet);
+					}
+					else if (reconnectTimeout != null && connectTimeout == null)
+					{
+						reconnectTimeout.cancel();
+						reconnectTimeout = null;
+						reconnectAttemptSuccess((ConnectAck)packet);
+					}
+					else
+					{
+						System.err.println("Error... can't tell if it's a connect or reconnect ACK.");
+					}
+					break;
+				case SEND_ACK:
+					sendAcknowledged((SendAck)packet);
+					break;
+				case MESSAGE_DATA:
+					receivedMessage((MessageData)packet);
+					break;
+				case SERVER_UPDATE:
+					setFallbackServers((ServerUpdate)packet);
+					break;
+				default:
+					break;
+				}
 			}
 		}
-		
+
 		public synchronized void cancel()
 		{
 			synchronized(parent)
@@ -406,6 +621,7 @@ public class Client
 	
 	private class ConnectTimeout extends TimerTask
 	{
+		private boolean cancel;
 		private int triesLeft;
 		private Client parent;
 
@@ -413,6 +629,7 @@ public class Client
 		{
 			this.triesLeft = triesLeft;
 			this.parent = parent;
+			this.cancel = false;
 		}
 		
 		@Override
@@ -420,7 +637,7 @@ public class Client
 		{	
 			synchronized(parent)
 			{
-				// TODO Auto-generated method stub
+				this.cancel = true;
 				return super.cancel();
 			}
 		}
@@ -430,13 +647,15 @@ public class Client
 		{
 			synchronized(parent)
 			{
-				// TODO Auto-generated method stub
+				if (cancel) return;
+				connectAttemptFailed(triesLeft, this);
 			}
 		}
 	}
 	
 	private class ReconnectTimeout extends TimerTask
 	{
+		private boolean cancel;
 		private int triesLeft;
 		private Client parent;
 		
@@ -444,6 +663,7 @@ public class Client
 		{
 			this.triesLeft = triesLeft;
 			this.parent = parent;
+			this.cancel = false;
 		}
 		
 		@Override
@@ -451,7 +671,7 @@ public class Client
 		{
 			synchronized(parent)
 			{
-				// TODO Auto-generated method stub
+				this.cancel = true;
 				return super.cancel();
 			}
 		}
@@ -461,20 +681,25 @@ public class Client
 		{
 			synchronized(parent)
 			{
-				// TODO Auto-generated method stub
+				if (cancel) return;
+				reconnectAttemptFailed(triesLeft, this);
 			}
 		}
 	}
 	
 	private class SendTimeout extends TimerTask
 	{
+		private boolean cancel;
 		private int triesLeft;
 		private Client parent;
+		private int messageNumber;
 		
-		public SendTimeout(int triesLeft, Client parent)
+		public SendTimeout(int triesLeft, Client parent, int messageNumber)
 		{
 			this.triesLeft = triesLeft;
 			this.parent = parent;
+			this.cancel = false;
+			this.messageNumber = messageNumber;
 		}
 
 		@Override
@@ -482,7 +707,7 @@ public class Client
 		{
 			synchronized(parent)
 			{
-				// TODO Auto-generated method stub
+				this.cancel = true;
 				return super.cancel();
 			}
 		}
@@ -492,7 +717,26 @@ public class Client
 		{
 			synchronized(parent)
 			{
-				// TODO Auto-generated method stub
+				if (cancel) return;
+				
+				this.cancel();
+				SendMessage msg = sendList.get(messageNumber);
+				if (triesLeft > 0)
+				{
+					try
+					{
+						sendMessage(msg, triesLeft);
+					}
+					catch (IOException e)
+					{
+						delayedSends.add(msg);
+						connectionError();
+					}
+				}
+				else
+				{
+					sendFailed();
+				}
 			}
 		}
 	}

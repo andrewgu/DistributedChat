@@ -2,6 +2,7 @@ package protocol.packets;
 
 import protocol.ISendable;
 import protocol.PacketType;
+import protocol.data.MessageID;
 
 public class SendAck implements ISendable
 {
@@ -15,11 +16,13 @@ public class SendAck implements ISendable
 
 	private ServerUpdate serverUpdate;
 	private long timestamp;
+	private MessageID messageID;
 
-	public SendAck(ServerUpdate serverUpdate, long timestamp)
+	public SendAck(ServerUpdate serverUpdate, long timestamp, MessageID messageID)
 	{
 		this.serverUpdate = serverUpdate;
 		this.timestamp = timestamp;
+		this.messageID = messageID;
 	}
 
 	public ServerUpdate getServerUpdate()
@@ -40,5 +43,15 @@ public class SendAck implements ISendable
 	public void setTimestamp(long timestamp)
 	{
 		this.timestamp = timestamp;
+	}
+
+	public MessageID getMessageID()
+	{
+		return messageID;
+	}
+
+	public void setMessageID(MessageID messageID)
+	{
+		this.messageID = messageID;
 	}
 }
