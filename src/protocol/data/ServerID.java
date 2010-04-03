@@ -4,6 +4,21 @@ import java.io.Serializable;
 
 public class ServerID implements Serializable
 {
+	@Override
+	public boolean equals(Object obj)
+	{
+		if (obj instanceof ServerID)
+		{
+			ServerID other = (ServerID)obj;
+			return this.getRing() == other.getRing()
+				&& this.getServerNumber() == other.getServerNumber();
+		}
+		else
+		{
+			return false;
+		}
+	}
+
 	private static final long serialVersionUID = 1L;
 
 	private int ring;
