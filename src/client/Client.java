@@ -4,14 +4,13 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Calendar;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Queue;
-import java.util.SortedSet;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import protocol.ClientConnection;
@@ -77,7 +76,7 @@ public class Client
 	// List of fallbacks, ordered from most desirable fallback to least desirable.
 	private Queue<ServerPriorityListing> fallbacks;
 	// List of messages received by the client.
-	private SortedSet<ClientMessage> messages;
+	private Map<MessageID, ClientMessage> messages;
 	// List of messages not yet acknowledged.
 	private Map<Integer, SendMessage> sendList;
 	private Queue<SendMessage> delayedSends;
@@ -116,11 +115,16 @@ public class Client
 		this.clientID = null;
 		this.currentServer = null;
 		this.fallbacks = new PriorityQueue<ServerPriorityListing>();
-		this.messages = new TreeSet<ClientMessage>(ClientMessage.TIMESTAMP_COMPARATOR);
+		this.messages = new TreeMap<MessageID, ClientMessage>();
 		this.sendList = new TreeMap<Integer, SendMessage>();
 		this.delayedSends = new LinkedBlockingQueue<SendMessage>();
 		this.handler = handler;
 		this.sendCounter = 0;
+	}
+	
+	public synchronized Iterator<ClientMessage> messageIterator()
+	{
+		return this.messages.values().iterator();
 	}
 	
 	public synchronized void connect() throws ClientStateException, UnknownHostException, IOException
@@ -202,7 +206,7 @@ public class Client
 	{
 		if (state == State.CONNECTED)
 		{
-			SendMessage msg = new SendMessage(room, alias, clientID, new MessageID(clientID, getNextMessageNumber()), message);
+			SendMessage msg = new SendMessage(room, alias, clientID, new MessageID(clientID, getNextMessageNumber()), message, getCurrentTimestamp());
 			try
 			{
 				sendMessage(msg, this.maxSendRetries);
@@ -215,7 +219,7 @@ public class Client
 		}
 		else if (state == State.RECONNECTING)
 		{
-			SendMessage msg = new SendMessage(room, alias, clientID, new MessageID(clientID, getNextMessageNumber()), message);
+			SendMessage msg = new SendMessage(room, alias, clientID, new MessageID(clientID, getNextMessageNumber()), message, getCurrentTimestamp());
 			this.delayedSends.add(msg);
 		}
 		else
@@ -229,18 +233,6 @@ public class Client
 		connection.sendPacket(msg);
 		this.sendList.put(msg.getMessageID().getMessageNumber(), msg);
 		this.timeoutTimer.schedule(new SendTimeout(triesLeft-1, this, msg.getMessageID().getMessageNumber()), this.sendTimeout);
-	}
-
-	private int getNextMessageNumber()
-	{
-		int ret = this.sendCounter;
-		this.sendCounter++;
-		return ret;
-	}
-
-	private static long getCurrentTimestamp()
-	{
-		return Calendar.getInstance().getTimeInMillis();
 	}
 	
 	private void authenticationError()
@@ -443,22 +435,49 @@ public class Client
 		}
 	}
 	
-	private void sendFailed()
+	// Fired when no more retries
+	private void sendFailed(int messageNumber)
 	{
-		// TODO Auto-generated method stub
+		connectionError();
 		
+		synchronized(this.handler)
+		{
+			SendMessage msg = this.sendList.get(new Integer(messageNumber));
+			this.handler.onSendFailed(this, new ClientMessage(msg));
+		}
 	}
 	
 	private void sendAcknowledged(SendAck packet)
 	{
-		// TODO Auto-generated method stub
-		
+		Integer messageNumber = new Integer(packet.getMessageID().getMessageNumber());
+		if (this.sendList.containsKey(messageNumber))
+		{
+			SendMessage msg = this.sendList.get(messageNumber);
+			this.sendList.remove(messageNumber);
+			
+			ClientMessage cmsg = new ClientMessage(msg);
+			this.messages.put(msg.getMessageID(), cmsg);
+			
+			synchronized(this.handler)
+			{
+				this.handler.onSendAcknowledged(this, cmsg);
+			}
+		}
 	}
 
+	// Fired
 	private void receivedMessage(MessageData md)
 	{
-		// TODO Auto-generated method stub
+		ClientMessage message = new ClientMessage(md);
 		
+		if (this.messages.get(md.getMessageID()) == null)
+		{
+			this.messages.put(md.getMessageID(), message);
+			synchronized(this.handler)
+			{
+				this.handler.onMessageReceived(this, message);
+			}
+		}
 	}
 
 	private void setFallbackServers(ServerUpdate serverData)
@@ -469,6 +488,18 @@ public class Client
 			if (this.currentServer == null || !this.currentServer.equals(listing.getId()))
 				this.fallbacks.add(listing);
 		}
+	}
+	
+	private int getNextMessageNumber()
+	{
+		int ret = this.sendCounter;
+		this.sendCounter++;
+		return ret;
+	}
+
+	private static long getCurrentTimestamp()
+	{
+		return Calendar.getInstance().getTimeInMillis();
 	}
 
 	private class AuthenticationHandler extends TimerTask implements IClientHandler
@@ -721,7 +752,7 @@ public class Client
 				
 				this.cancel();
 				SendMessage msg = sendList.get(messageNumber);
-				if (triesLeft > 0)
+				if (triesLeft > 0 && msg != null)
 				{
 					try
 					{
@@ -733,9 +764,9 @@ public class Client
 						connectionError();
 					}
 				}
-				else
+				else if (msg != null)
 				{
-					sendFailed();
+					sendFailed(messageNumber);
 				}
 			}
 		}

@@ -14,7 +14,7 @@ public interface IChatClientHandler
 	
 	void onSendAttempted(Client caller, ClientMessage message);
 	void onSendAcknowledged(Client caller, ClientMessage message);
-	void onSendFailed(Client caller, ClientMessage message);
+	void onSendFailed(Client caller, ClientMessage clientMessage);
 	
 	void onMessageReceived(Client caller, ClientMessage message);
 	void onFallbackUpdate(Client caller, ClientMessage message);

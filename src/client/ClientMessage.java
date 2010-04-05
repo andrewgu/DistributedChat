@@ -3,6 +3,7 @@ package client;
 import java.util.Comparator;
 
 import protocol.packets.MessageData;
+import protocol.packets.SendMessage;
 
 public class ClientMessage
 {	
@@ -29,9 +30,9 @@ public class ClientMessage
 		this(Type.RECEIVED, mdata.getAlias(), mdata.getTimestamp(), mdata.getMessage(), mdata);
 	}
 	
-	public ClientMessage (String alias, long timestamp, String message)
+	public ClientMessage (SendMessage msg)
 	{
-		this(Type.SENT, alias, timestamp, message, null);
+		this(Type.SENT, msg.getAlias(), msg.getTimestamp(), msg.getMessage(), null);
 	}
 	
 	public ClientMessage (long timestamp, String notification)

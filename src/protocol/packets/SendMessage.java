@@ -20,15 +20,17 @@ public class SendMessage implements ISendable
 	private ClientID clientID;
 	private MessageID messageID;
 	private String message;
+	private long timestamp;
 
 	public SendMessage(String room, String alias, ClientID clientID,
-			MessageID messageID, String message)
+			MessageID messageID, String message, long timestamp)
 	{
 		this.room = room;
 		this.alias = alias;
 		this.clientID = clientID;
 		this.messageID = messageID;
 		this.message = message;
+		this.timestamp = timestamp;
 	}
 
 	public String getRoom()
@@ -79,5 +81,15 @@ public class SendMessage implements ISendable
 	public void setMessage(String message)
 	{
 		this.message = message;
+	}
+
+	public long getTimestamp()
+	{
+		return this.timestamp;
+	}
+	
+	public void setTimestamp(long timestamp)
+	{
+		this.timestamp = timestamp;
 	}
 }

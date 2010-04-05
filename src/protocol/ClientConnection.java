@@ -5,6 +5,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.util.Timer;
 
 public class ClientConnection
 {
@@ -21,6 +22,8 @@ public class ClientConnection
     
     private PacketReader reader;
     private PacketWriter writer;
+    
+    private Timer timer;
     
     public ClientConnection(InetAddress host, int port, 
             IClientHandler handler) throws IOException
@@ -43,6 +46,8 @@ public class ClientConnection
 		byte[] data = this.writer.getSerializationHeader();
 		this.dos.writeInt(data.length);
 		this.dos.write(data);
+		
+		this.timer = new Timer();
     }
     
     public synchronized boolean isOpen()
@@ -76,7 +81,14 @@ public class ClientConnection
     
     public synchronized void sendPacket(ISendable sendable) throws IOException
     {
-        if (closed)
+        this.sendPacket(sendable, null, -1);
+    }
+    
+    // timeoutCallback is ALWAYS called unless the callback is explicitly cancelled by the caller to sendPacket.
+    public synchronized void sendPacket(ISendable sendable, TimeoutCallback timeoutCallback, 
+    		long delayMilliseconds) throws IOException
+    {
+    	if (closed)
             throw new IOException("Connection is closed.");
         
         try
@@ -84,6 +96,9 @@ public class ClientConnection
         	byte[] data = writer.getSerializedData(sendable);
         	dos.writeInt(data.length);
             dos.write(data);
+            
+            if (timeoutCallback != null && delayMilliseconds > 0)
+            	timer.schedule(timeoutCallback, delayMilliseconds);
         }
         catch (IOException e)
         {

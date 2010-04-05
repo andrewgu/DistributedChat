@@ -2,7 +2,7 @@ package protocol.data;
 
 import java.io.Serializable;
 
-public class MessageID implements Serializable
+public class MessageID implements Serializable, Comparable<MessageID>
 {
 	private static final long serialVersionUID = 1L;
 	
@@ -33,5 +33,24 @@ public class MessageID implements Serializable
 	public void setMessageNumber(int messageNumber)
 	{
 		this.messageNumber = messageNumber;
+	}
+
+	@Override
+	public boolean equals(Object obj)
+	{
+		return (obj instanceof MessageID) 
+			&& clientId.equals(obj) 
+			&& messageNumber == ((MessageID)obj).getMessageNumber(); 
+	}
+
+	@Override
+	public int compareTo(MessageID other)
+	{
+		int c = clientId.compareTo(other.getClientID());
+		
+		if (c == 0)
+			return messageNumber - other.getMessageNumber();
+		else
+			return c;
 	}
 }
