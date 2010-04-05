@@ -2,7 +2,7 @@ package protocol.data;
 
 import java.io.Serializable;
 
-public class ServerID implements Serializable
+public class ServerID implements Serializable, Comparable<ServerID>
 {
 	@Override
 	public boolean equals(Object obj)
@@ -48,5 +48,15 @@ public class ServerID implements Serializable
 	public void setServerNumber(int serverNumber)
 	{
 		this.serverNumber = serverNumber;
+	}
+
+	@Override
+	public int compareTo(ServerID o)
+	{
+		int r = this.ring - o.getRing();
+		if (r == 0)
+			return this.serverNumber - o.serverNumber;
+		else
+			return r;
 	}
 }

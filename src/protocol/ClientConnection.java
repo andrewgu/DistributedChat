@@ -60,6 +60,7 @@ public class ClientConnection
     	if (!closed)
     	{
     		closed = true;
+    		this.timer.cancel();
     		this.reader.close();
     		this.writer.close();
     		

@@ -15,6 +15,8 @@ public class TimeoutCallback extends TimerTask
 	
 	public synchronized void run()
 	{
+		this.cancel();
+		
 		if (!cancelled)
 			callback.run();
 	}

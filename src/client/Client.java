@@ -3,20 +3,18 @@ package client;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayDeque;
 import java.util.Calendar;
-import java.util.Iterator;
-import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Queue;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.TreeMap;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.TreeSet;
 
 import protocol.ClientConnection;
 import protocol.IClientHandler;
 import protocol.ISendable;
 import protocol.PacketType;
+import protocol.TimeoutCallback;
 import protocol.data.ClientID;
 import protocol.data.MessageID;
 import protocol.data.ServerID;
@@ -35,57 +33,57 @@ public class Client
 {
 	public enum State
 	{
-		DISCONNECTED,
-		AUTHENTICATING,
-		CONNECTING,
-		RECONNECTING,
-		CONNECTED
+		DISCONNECTED(1),
+		AUTHENTICATING(2),
+		AUTHENTICATED(4),
+		CONNECTING(8),
+		RECONNECTING(16),
+		CONNECTED(32),
+		DROPPED(64);
+		
+		public int v;
+		private State(int val)
+		{
+			this.v = val;
+		}
 	}
 	
-	//Current state of the client.
-	private State state;
-	
-	private String authHost;
+	private InetAddress authHost;
 	private int authPort;
 	private String room;
 	private String alias;
-	
 	private int maxSendRetries;
 	private int sendTimeout;
-	
 	private int maxReconnectRetries;
 	private int connectTimeout;
+	// Handler for chat client events.
+	private IChatClientHandler handler;
 	
+	//Current state of the client.
+	private State state;
 	// Last timestamp when a message was received.
 	private long lastReceived;
 	// Last timestamp when a message was acknowledged.
 	private long lastAcked;
 	
-	// Used for implementing the send and connect timeouts.
-	private Timer timeoutTimer;
-	// Current connection for authentication, alive only when authenticating
 	private ClientConnection authConnection;
-	private AuthenticationHandler authHandler;
-	// Current connection
-	private ClientConnection connection;
-	private ConnectionHandler connHandler;
+	private ClientConnection chatConnection;
+	
 	// ClientID given by authentication
 	private ClientID clientID;
 	// ID of curent connected server
-	private ServerID currentServer;
-	// List of fallbacks, ordered from most desirable fallback to least desirable.
-	private Queue<ServerPriorityListing> fallbacks;
-	// List of messages received by the client.
-	private Map<MessageID, ClientMessage> messages;
-	// List of messages not yet acknowledged.
-	private Map<Integer, SendMessage> sendList;
-	private Queue<SendMessage> delayedSends;
-	// Handler for chat client events.
-	private IChatClientHandler handler;
-	// Counts up from 0 for subsequent message sent by the client.
-	private int sendCounter;
+	private ServerID serverID;
 	
-	public Client(String authHost, int authPort, String room, String alias, IChatClientHandler handler)
+	// List of fallbacks, ordered from most desirable fallback to least desirable.
+	private PriorityQueue<ServerPriorityListing> fallbacks;
+	
+	private TreeSet<MessageID> receivedMessages;
+	// List of messages not yet acknowledged.
+	private TreeMap<Integer, SendMessage> sendList;
+	// List of messages to send once connected.
+	private Queue<SendMessage> delayedSends;
+	
+	public Client(String authHost, int authPort, String room, String alias, IChatClientHandler handler) throws UnknownHostException
 	{
 		this(authHost, authPort, room, alias, 2, 20000, 4, 3000, handler);
 	}
@@ -93,11 +91,11 @@ public class Client
 	public Client(String authHost, int authPort, String room, String alias, 
 			int sendRetries, int sendTimeout,
 			int reconnectRetries, int connectTimeout,
-			IChatClientHandler handler)
+			IChatClientHandler handler) throws UnknownHostException
 	{
 		this.state = State.DISCONNECTED;
 		
-		this.authHost = authHost;
+		this.authHost = InetAddress.getByName(authHost);
 		this.authPort = authPort;
 		this.room = room;
 		this.alias = alias;
@@ -106,411 +104,179 @@ public class Client
 		this.maxReconnectRetries = reconnectRetries;
 		this.connectTimeout = connectTimeout;
 		
-		this.lastAcked = this.lastReceived = getCurrentTimestamp();
-		this.timeoutTimer = new Timer();
-		this.authConnection = null;
-		this.authHandler = null;
-		this.connection = null;
-		this.connHandler = null;
-		this.clientID = null;
-		this.currentServer = null;
-		this.fallbacks = new PriorityQueue<ServerPriorityListing>();
-		this.messages = new TreeMap<MessageID, ClientMessage>();
-		this.sendList = new TreeMap<Integer, SendMessage>();
-		this.delayedSends = new LinkedBlockingQueue<SendMessage>();
 		this.handler = handler;
-		this.sendCounter = 0;
+		
+		this.lastAcked = this.lastReceived = getCurrentTimestamp();
+		
+		this.authConnection = null;
+		this.chatConnection = null;
+		
+		this.clientID = null;
+		this.serverID = null;
+		
+		this.fallbacks = new PriorityQueue<ServerPriorityListing>(); 
+		
+		this.receivedMessages = new TreeSet<MessageID>();
+		this.sendList = new TreeMap<Integer, SendMessage>();
+		this.delayedSends = new ArrayDeque<SendMessage>();
 	}
 	
-	public synchronized Iterator<ClientMessage> messageIterator()
+	public synchronized void connect() throws UnknownHostException, IOException
 	{
-		return this.messages.values().iterator();
-	}
-	
-	public synchronized void connect() throws ClientStateException, UnknownHostException, IOException
-	{
-		if (state != State.DISCONNECTED)
-			throw new ClientStateException("Can only connect to room when disconnected.");
-		
-		try
-		{
-			this.authHandler = new AuthenticationHandler(this);
-			this.authConnection = new ClientConnection(InetAddress.getByName(authHost), authPort, authHandler);
-			this.authConnection.sendPacket(new FindRoom(this.room));
-			this.timeoutTimer.schedule(authHandler, this.connectTimeout);
-		}
-		catch (UnknownHostException e)
-		{
-			this.authHandler.cancel();
-			this.authHandler = null;
-			throw e;
-		}
-		catch (IOException e)
-		{
-			this.authHandler.cancel();
-			this.authHandler = null;
-			this.authConnection = null;
-			
-			synchronized(handler)
-			{
-				handler.onConnectFailed(this);
-			}
-			
-			throw e;
-		}
-		
-		state = State.AUTHENTICATING;
+		authenticate();
 	}
 	
 	public synchronized void disconnect()
 	{
-		switch (state)
+		this.state = State.DISCONNECTED;
+		this.lastReceived = -1;
+		this.lastAcked = -1;
+		
+		if (this.authConnection != null)
 		{
-		case CONNECTED:
-		case RECONNECTING:
-		case CONNECTING:
-			this.connHandler.cancel();
-			this.connection.close();
-		case AUTHENTICATING:
-			if (this.authConnection != null)
-			{
-				this.authHandler.cancel();
-				this.authConnection.close();
-			}
-		case DISCONNECTED:
-			this.lastAcked = this.lastReceived = getCurrentTimestamp();
-			this.timeoutTimer.cancel();
-			this.timeoutTimer = new Timer();
+			this.authConnection.close();
 			this.authConnection = null;
-			this.authHandler = null;
-			this.connection = null;
-			this.connHandler = null;
-			this.clientID = null;
-			this.currentServer = null;
-			this.fallbacks.clear();
-			this.messages.clear();
-			this.sendList.clear();
-			this.delayedSends.clear();
-			this.sendCounter = 0;
 		}
 		
-		state = State.DISCONNECTED;
-		
-		synchronized (handler)
+		if (this.chatConnection != null)
 		{
-			handler.onDisconnected(this);
+			this.chatConnection.close();
+			this.chatConnection = null;
+		}
+		
+		this.clientID = null;
+		this.serverID = null;
+		
+		this.fallbacks.clear();
+		this.receivedMessages.clear();
+		this.sendList.clear();
+		this.delayedSends.clear();
+		
+		synchronized(this.handler)
+		{
+			this.handler.onDisconnected(this);
 		}
 	}
 	
-	public synchronized void send(String message) throws ClientStateException
+	public synchronized void send(String message) throws IOException
 	{
-		if (state == State.CONNECTED)
+		//assertState(State.CONNECTED.v | State.RECONNECTING.v);
+		
+		if (this.state == State.CONNECTED)
 		{
-			SendMessage msg = new SendMessage(room, alias, clientID, new MessageID(clientID, getNextMessageNumber()), message, getCurrentTimestamp());
-			try
-			{
-				sendMessage(msg, this.maxSendRetries);
-			}
-			catch (IOException e)
-			{
-				this.delayedSends.add(msg);
-				connectionError();
-			}
+			trySend(message, this.maxSendRetries);
 		}
-		else if (state == State.RECONNECTING)
+		else if (this.state == State.RECONNECTING)
 		{
-			SendMessage msg = new SendMessage(room, alias, clientID, new MessageID(clientID, getNextMessageNumber()), message, getCurrentTimestamp());
-			this.delayedSends.add(msg);
+			this.delayedSends.add(
+				new SendMessage(this.room, this.alias, this.clientID, 
+					new MessageID(this.clientID, getNextMessageNumber()), message, getCurrentTimestamp()));
 		}
 		else
 		{
-			throw new ClientStateException("Can only connect to room when disconnected.");
+			throw new IOException("Can only send messages while connected to chatroom.");
 		}
 	}
 
-	private void sendMessage(SendMessage msg, int triesLeft) throws IOException
+	private void receivedMessage(MessageData message)
 	{
-		connection.sendPacket(msg);
-		this.sendList.put(msg.getMessageID().getMessageNumber(), msg);
-		this.timeoutTimer.schedule(new SendTimeout(triesLeft-1, this, msg.getMessageID().getMessageNumber()), this.sendTimeout);
-	}
-	
-	private void authenticationError()
-	{
-		synchronized (handler)
+		if (!this.receivedMessages.contains(message.getMessageID()))
 		{
-			handler.onConnectFailed(this);
-		}
-		disconnect();
-	}
-	
-	private void authenticationSuccess(RoomFound packet)
-	{
-		if (this.state != State.AUTHENTICATING)
-			System.err.println("Invalid internal state: authenticationSuccess should only be called in AUTHENTICATING state.");
-		
-		authHandler.cancel();
-		authConnection.close();
-		authHandler = null;
-		authConnection = null;
-		
-		if (!packet.getServerData().getRoom().equals(room))
-			authenticationError();
-		
-		clientID = packet.getClientID();
-		setFallbackServers(packet.getServerData());
-		
-		tryConnectLoop(this.maxReconnectRetries);
-	}
-	
-	private void tryConnectLoop(int triesLeft)
-	{		
-		this.state = State.CONNECTING;
-		
-		if (!this.fallbacks.isEmpty() && triesLeft > 0)
-		{
-			// Send packet
-			ConnectTimeout timeout = null;
-			try
-			{
-				ServerPriorityListing listing = this.fallbacks.remove();
-				this.connHandler = new ConnectionHandler(this);
-				this.connection = new ClientConnection(listing.getAddress().getHostAddress(), listing.getAddress().getPort(), this.connHandler);
-				
-				timeout = new ConnectTimeout(triesLeft-1, this);
-				this.connHandler.setConnectTimeoutHandler(timeout);
-				this.connection.sendPacket(new ClientConnect(this.clientID, this.room));
-				this.timeoutTimer.schedule(timeout, this.connectTimeout);
-			}
-			catch (IOException e)
-			{
-				connectAttemptFailed(triesLeft-1, timeout);
-			}
-		}
-		else
-		{
-			connectFailed();
-		}
-	}
-	
-	private void connectAttemptFailed(int triesLeft, ConnectTimeout timeout)
-	{
-		if (timeout != null)
-			timeout.cancel();
-		if (this.connHandler != null)
-			this.connHandler.cancel();
-		if (this.connection != null)
-			this.connection.close();
-		
-		this.connection = null;
-		this.connHandler = null;
-		
-		tryConnectLoop(triesLeft);
-	}
-	
-	private void connectAttemptSuccess(ConnectAck packet)
-	{
-		this.currentServer = packet.getServers().getSender();
-		setFallbackServers(packet.getServers());
-	
-		this.state = State.CONNECTED;
-		
-		this.lastAcked = this.lastReceived = getCurrentTimestamp();
-		
-		synchronized(this.handler)
-		{
-			this.handler.onConnected(this);
-		}
-	}
-	
-	private void tryReconnectLoop(int triesLeft)
-	{
-		this.state = State.RECONNECTING;
-		
-		if (!this.fallbacks.isEmpty() && triesLeft > 0)
-		{
-			// Send packet
-			ReconnectTimeout timeout = null;
-			try
-			{
-				ServerPriorityListing listing = this.fallbacks.remove();
-				this.connHandler = new ConnectionHandler(this);
-				this.connection = new ClientConnection(listing.getAddress().getHostAddress(), listing.getAddress().getPort(), this.connHandler);
-				
-				timeout = new ReconnectTimeout(triesLeft-1, this);
-				this.connHandler.setReconnectTimeoutHandler(timeout);
-				this.connection.sendPacket(new ClientReconnect(this.clientID, this.room, this.lastAcked, this.lastReceived));
-				this.timeoutTimer.schedule(timeout, this.connectTimeout);
-			}
-			catch (IOException e)
-			{
-				reconnectAttemptFailed(triesLeft-1, timeout);
-			}
-		}
-		else
-		{
-			reconnectFailed();
-		}
-	}
-	
-	private void reconnectAttemptFailed(int triesLeft, ReconnectTimeout timeout)
-	{
-		if (timeout != null)
-			timeout.cancel();
-		if (this.connHandler != null)
-			this.connHandler.cancel();
-		if (this.connection != null)
-			this.connection.close();
-		
-		this.connection = null;
-		this.connHandler = null;
-		
-		tryReconnectLoop(triesLeft);
-	}
-	
-	private void reconnectAttemptSuccess(ConnectAck packet)
-	{	
-		this.currentServer = packet.getServers().getSender();
-		setFallbackServers(packet.getServers());
-	
-		this.state = State.CONNECTED;
-		
-		synchronized(this.handler)
-		{
-			this.handler.onReconnected(this);
-		}
-		
-		try
-		{
-			clearDelaySendQueue();
-		}
-		catch (IOException e)
-		{
-			connectionError();
-		}
-	}
-	
-	private void connectFailed()
-	{
-		synchronized(this.handler)
-		{
-			this.handler.onConnectFailed(this);
-		}
-		
-		disconnect();
-	}
-	
-	private void reconnectFailed()
-	{
-		synchronized(this.handler)
-		{
-			this.handler.onReconnectFailed(this);
-		}
-		
-		disconnect();
-	}
-	
-	private void connectionError()
-	{
-		if (this.state != State.CONNECTED)
-			System.err.println("Internal state error: should not call connectionError except when in CONNECTED state.");
-		
-		this.connHandler.cancel();
-		this.connection.close();
-		this.connHandler = null;
-		this.connection = null;
-		this.currentServer = null;
-		
-		tryReconnectLoop(this.maxReconnectRetries);
-	}
-	
-	
-	private void clearDelaySendQueue() throws IOException
-	{
-		while (!this.delayedSends.isEmpty())
-		{
-			SendMessage msg = this.delayedSends.peek();
-			sendMessage(msg, this.maxSendRetries);
-			this.delayedSends.remove();
-		}
-	}
-	
-	// Fired when no more retries
-	private void sendFailed(int messageNumber)
-	{
-		connectionError();
-		
-		synchronized(this.handler)
-		{
-			SendMessage msg = this.sendList.get(new Integer(messageNumber));
-			this.handler.onSendFailed(this, new ClientMessage(msg));
-		}
-	}
-	
-	private void sendAcknowledged(SendAck packet)
-	{
-		Integer messageNumber = new Integer(packet.getMessageID().getMessageNumber());
-		if (this.sendList.containsKey(messageNumber))
-		{
-			SendMessage msg = this.sendList.get(messageNumber);
-			this.sendList.remove(messageNumber);
-			
-			ClientMessage cmsg = new ClientMessage(msg);
-			this.messages.put(msg.getMessageID(), cmsg);
-			
-			synchronized(this.handler)
-			{
-				this.handler.onSendAcknowledged(this, cmsg);
-			}
-		}
-	}
-
-	// Fired
-	private void receivedMessage(MessageData md)
-	{
-		ClientMessage message = new ClientMessage(md);
-		
-		if (this.messages.get(md.getMessageID()) == null)
-		{
-			this.messages.put(md.getMessageID(), message);
+			this.lastReceived = message.getTimestamp();
+			this.receivedMessages.add(message.getMessageID());
 			synchronized(this.handler)
 			{
 				this.handler.onMessageReceived(this, message);
 			}
 		}
 	}
-
-	private void setFallbackServers(ServerUpdate serverData)
+	
+	private void receivedServerUpdate(ServerUpdate update)
 	{
-		this.fallbacks.clear();
-		for (ServerPriorityListing listing : serverData.getServers())
+		updateServerList(update);
+	}
+	
+	private void authenticate() throws UnknownHostException, IOException
+	{
+		assertState(State.DISCONNECTED);
+		this.state = State.AUTHENTICATING;
+		
+		final Client callbackParent = this;
+		TimeoutCallback authCb = new TimeoutCallback(new Runnable()
+			{
+				@Override
+				public void run()
+				{
+					synchronized (callbackParent)
+					{
+						authConnectionTimedOut();
+					}
+				}
+			});
+		
+		// authCb gets cancelled by the handler.
+		try
 		{
-			if (this.currentServer == null || !this.currentServer.equals(listing.getId()))
-				this.fallbacks.add(listing);
+			this.authConnection = new ClientConnection(this.authHost, this.authPort, 
+				new AuthenticationHandler(this, authCb));	
+			this.authConnection.sendPacket(new FindRoom(this.room), authCb, this.connectTimeout);
+		}
+		catch (IOException e)
+		{
+			this.authConnection = null;
+			authCb.cancel();
+			throw e;
 		}
 	}
 	
-	private int getNextMessageNumber()
+	private void authConnectionTimedOut()
 	{
-		int ret = this.sendCounter;
-		this.sendCounter++;
-		return ret;
+		assertState(State.AUTHENTICATING);
+		this.authConnection.close();
+		// .close will trigger the handler's onConnectionClosed, which calls authConnectionClosed.
+		//authConnectionClosed();
 	}
-
-	private static long getCurrentTimestamp()
+	
+	private void authConnectionClosed()
 	{
-		return Calendar.getInstance().getTimeInMillis();
-	}
-
-	private class AuthenticationHandler extends TimerTask implements IClientHandler
-	{
-		private boolean cancel;
-		private Client parent;
+		assertState(State.AUTHENTICATING);
 		
-		public AuthenticationHandler(Client parent)
+		synchronized(this.handler)
+		{
+			this.handler.onAuthenticateFailed(this);
+		}
+		
+		this.disconnect();
+	}
+	
+	private void authenticationSuccess(RoomFound packet)
+	{
+		assertState(State.AUTHENTICATING);
+		this.state = State.AUTHENTICATED;
+		
+		this.clientID = packet.getClientID();
+		updateServerList(packet.getServerData());
+		
+		this.authConnection.close();
+		this.authConnection = null;
+		
+		synchronized(this.handler)
+		{
+			this.handler.onAuthenticated(this);
+		}
+		
+		tryConnect(this.maxReconnectRetries);
+	}
+
+	private class AuthenticationHandler implements IClientHandler
+	{
+		private Client parent;
+		private TimeoutCallback authCallback;
+		
+		public AuthenticationHandler(Client parent, TimeoutCallback authCallback)
 		{
 			this.parent = parent;
-			this.cancel = false;
+			this.authCallback = authCallback;
 		}
 		
 		@Override
@@ -518,8 +284,9 @@ public class Client
 		{
 			synchronized(parent)
 			{
-				if (cancel) return;
-				authenticationError();
+				authCallback.cancel();
+				if (state == State.AUTHENTICATING)
+					authConnectionClosed();
 			}
 		}
 
@@ -528,247 +295,498 @@ public class Client
 		{
 			synchronized(parent)
 			{
-				if (cancel) return;
-				
+				authCallback.cancel();
 				if (packet.getPacketType() == PacketType.ROOM_FOUND)
 				{
-					this.cancel();
 					authenticationSuccess((RoomFound)packet);
 				}
 				else
 				{
 					System.err.println("Detected server error: Authentication server responded with packet that isn't ROOM_FOUND.");
-					authenticationError();
+					authConnection.close();
+					// .close calls the onConnectionClosed handler.
+					//authConnectionClosed();
+				}
+			}
+		}
+	}
+	
+	private void tryConnect(int triesLeft)
+	{
+		assertState(State.AUTHENTICATED);
+		this.state = State.CONNECTING;
+		
+		ServerPriorityListing listing = getNextListing();
+		if (triesLeft > 0 && listing != null )
+		{
+			final Client callbackParent = this;
+			final int callbackTriesLeft = triesLeft;
+			TimeoutCallback connCb = new TimeoutCallback(new Runnable()
+				{
+					@Override
+					public void run()
+					{
+						callbackParent.connectTimedOut(callbackTriesLeft - 1);
+					}
+				});
+			
+			try
+			{
+				this.chatConnection = new ClientConnection(listing.getAddress().getHostAddress(), listing.getAddress().getPort(), 
+						new ConnectHandler(this, triesLeft - 1, connCb));
+				this.chatConnection.sendPacket(new ClientConnect(this.clientID, this.room), connCb, this.connectTimeout);
+			}
+			catch (IOException e)
+			{
+				// connection closed automatically or never opened in the first place.
+				connCb.cancel();
+				//connectRejected(triesLeft - 1);
+			}
+		}
+		else
+		{
+			this.chatConnection = null;
+			this.clientID = null;
+			
+			// Failed.
+			synchronized(this.handler)
+			{
+				this.handler.onDropped(this);
+			}
+			
+			this.disconnect();
+		}
+	}
+	
+	private void connectTimedOut(int triesLeft)
+	{
+		assertState(State.CONNECTING);
+		// Indirectly calls connectRejected.
+		this.chatConnection.close();
+	}
+	
+	private void connectRejected(int triesLeft)
+	{
+		// Only relevant when trying to connect.
+		assertState(State.CONNECTING);
+		
+		this.chatConnection = null;
+		this.state = State.AUTHENTICATED;
+		
+		synchronized(this.handler)
+		{
+			this.handler.onConnectFailed(this);
+		}
+		
+		tryConnect(triesLeft);
+	}
+	
+	private void connectSuccess(ConnectAck ack)
+	{
+		assertState(State.CONNECTING);	
+		
+		this.serverID = ack.getServers().getSender();
+		this.lastAcked = this.lastReceived = ack.getTimestamp();
+		updateServerList(ack.getServers());
+		
+		this.state = State.CONNECTED;
+		
+		synchronized(this.handler)
+		{
+			this.handler.onConnected(this);
+		}
+	}
+	
+	private void connectDropped()
+	{
+		assertState(State.CONNECTED);
+		// Happens if connection gets dropped while in active chat state.
+		
+		// Store failed sends for reconnect.
+		this.chatConnection = null;
+		for (SendMessage msg : this.sendList.values())
+			this.delayedSends.add(msg);
+		this.sendList.clear();
+		
+		this.state = State.DROPPED;
+		this.tryReconnect(this.maxReconnectRetries);
+	}
+	
+	private void connectClosedUnknownState()
+	{
+		System.err.println("Connection was dropped in an unsupported state: not CONNECTING or CONNECTED.");
+		this.disconnect();
+	}
+	
+	private class ConnectHandler implements IClientHandler
+	{
+		private Client parent;
+		private int triesLeft;
+		private TimeoutCallback connectCallback;
+		
+		public ConnectHandler(Client parent, int triesLeft,
+				TimeoutCallback connectCallback)
+		{
+			this.parent = parent;
+			this.triesLeft = triesLeft;
+			this.connectCallback = connectCallback;
+		}
+
+		@Override
+		public void onConnectionClosed(ClientConnection caller)
+		{
+			synchronized (parent)
+			{	
+				if (state == State.CONNECTING)
+				{
+					connectCallback.cancel();
+					connectRejected(triesLeft);
+				}
+				else if (state == State.CONNECTED)
+				{
+					connectDropped();
+				}
+				else
+				{
+					connectClosedUnknownState();
 				}
 			}
 		}
 
 		@Override
-		public boolean cancel()
+		public void onPacket(ClientConnection caller, ISendable packet)
 		{
-			synchronized(parent)
+			synchronized (parent)
 			{
-				cancel = true;
-				return super.cancel();
-			}
-		}
-
-		// For handling a timeout.
-		@Override
-		public void run()
-		{
-			synchronized(parent)
-			{
-				authenticationError();
-			}
-		}
-	}
-	
-	private class ConnectionHandler implements IClientHandler
-	{
-		private boolean cancel;
-		private Client parent;
-		
-		private ConnectTimeout connectTimeout;
-		private ReconnectTimeout reconnectTimeout;
-
-		public ConnectionHandler(Client parent)
-		{
-			this.parent = parent;
-			this.cancel = false;
-			this.connectTimeout = null;
-			this.reconnectTimeout = null;
-		}
-
-		private synchronized void setConnectTimeoutHandler(ConnectTimeout connectTimeout)
-		{
-			this.connectTimeout = connectTimeout;
-		}
-		
-		private synchronized void setReconnectTimeoutHandler(ReconnectTimeout reconnectTimeout)
-		{
-			this.reconnectTimeout = reconnectTimeout;
-		}
-
-		@Override
-		public synchronized void onConnectionClosed(ClientConnection caller)
-		{
-			synchronized(parent)
-			{
-				if (cancel) return;
-			}
-		}
-
-		@Override
-		public synchronized void onPacket(ClientConnection caller, ISendable packet)
-		{
-			synchronized(parent)
-			{
-				if (cancel) return;
-				
 				switch (packet.getPacketType())
 				{
 				case CONNECT_ACK:
-					if (connectTimeout != null && reconnectTimeout == null)
-					{
-						connectTimeout.cancel();
-						connectTimeout = null;
-						connectAttemptSuccess((ConnectAck)packet);
-					}
-					else if (reconnectTimeout != null && connectTimeout == null)
-					{
-						reconnectTimeout.cancel();
-						reconnectTimeout = null;
-						reconnectAttemptSuccess((ConnectAck)packet);
-					}
-					else
-					{
-						System.err.println("Error... can't tell if it's a connect or reconnect ACK.");
-					}
-					break;
-				case SEND_ACK:
-					sendAcknowledged((SendAck)packet);
+					connectCallback.cancel();
+					connectSuccess((ConnectAck)packet);
 					break;
 				case MESSAGE_DATA:
 					receivedMessage((MessageData)packet);
 					break;
 				case SERVER_UPDATE:
-					setFallbackServers((ServerUpdate)packet);
+					receivedServerUpdate((ServerUpdate)packet);
+				case SEND_ACK:
+					sendAcknowledged((SendAck)packet);
 					break;
 				default:
+					System.err.println("Detected server error: Unsupported packet type in chat connection.");
+					// Calls onConnectionClosed indirectly.
+					chatConnection.close();
 					break;
 				}
 			}
 		}
-
-		public synchronized void cancel()
+	}
+	
+	private void tryClearSendBacklog()
+	{
+		assertState(State.CONNECTED);
+		
+		try
 		{
-			synchronized(parent)
+			while (!this.delayedSends.isEmpty())
 			{
-				cancel = true;
+				SendMessage msg = this.delayedSends.peek();
+				this.trySend(msg, this.maxSendRetries);
+				this.delayedSends.remove();
 			}
+		}
+		catch (IOException e)
+		{
+			System.err.println("Failed to resend backlog.");
 		}
 	}
 	
-	private class ConnectTimeout extends TimerTask
+	private void trySend(String message, int triesLeft) throws IOException
 	{
-		private boolean cancel;
-		private int triesLeft;
-		private Client parent;
-
-		public ConnectTimeout(int triesLeft, Client parent)
-		{
-			this.triesLeft = triesLeft;
-			this.parent = parent;
-			this.cancel = false;
-		}
-		
-		@Override
-		public boolean cancel()
-		{	
-			synchronized(parent)
-			{
-				this.cancel = true;
-				return super.cancel();
-			}
-		}
-
-		@Override
-		public void run()
-		{
-			synchronized(parent)
-			{
-				if (cancel) return;
-				connectAttemptFailed(triesLeft, this);
-			}
-		}
+		this.trySend(
+			new SendMessage(this.room, this.alias, this.clientID, 
+				new MessageID(this.clientID, getNextMessageNumber()), message, getCurrentTimestamp()), triesLeft);
 	}
 	
-	private class ReconnectTimeout extends TimerTask
+	private void trySend(SendMessage msg, int triesLeft) throws IOException
 	{
-		private boolean cancel;
-		private int triesLeft;
-		private Client parent;
+		assertState(State.CONNECTED);
 		
-		public ReconnectTimeout(int triesLeft, Client parent)
+		if (triesLeft > 0)
 		{
-			this.triesLeft = triesLeft;
-			this.parent = parent;
-			this.cancel = false;
-		}
-		
-		@Override
-		public boolean cancel()
-		{
-			synchronized(parent)
-			{
-				this.cancel = true;
-				return super.cancel();
-			}
-		}
-
-		@Override
-		public void run()
-		{
-			synchronized(parent)
-			{
-				if (cancel) return;
-				reconnectAttemptFailed(triesLeft, this);
-			}
-		}
-	}
-	
-	private class SendTimeout extends TimerTask
-	{
-		private boolean cancel;
-		private int triesLeft;
-		private Client parent;
-		private int messageNumber;
-		
-		public SendTimeout(int triesLeft, Client parent, int messageNumber)
-		{
-			this.triesLeft = triesLeft;
-			this.parent = parent;
-			this.cancel = false;
-			this.messageNumber = messageNumber;
-		}
-
-		@Override
-		public boolean cancel()
-		{
-			synchronized(parent)
-			{
-				this.cancel = true;
-				return super.cancel();
-			}
-		}
-
-		@Override
-		public void run()
-		{
-			synchronized(parent)
-			{
-				if (cancel) return;
-				
-				this.cancel();
-				SendMessage msg = sendList.get(messageNumber);
-				if (triesLeft > 0 && msg != null)
+			this.sendList.put(msg.getMessageID().getMessageNumber(), msg);
+			
+			final Client callbackParent = this;
+			final int callbackTriesLeft = triesLeft;
+			final SendMessage callbackPacket = msg;
+			TimeoutCallback sendCb = new TimeoutCallback(new Runnable()
 				{
-					try
+					@Override
+					public void run()
 					{
-						sendMessage(msg, triesLeft);
+						synchronized(callbackParent)
+						{
+							sendTimedOut(callbackPacket, callbackTriesLeft - 1);
+						}
 					}
-					catch (IOException e)
-					{
-						delayedSends.add(msg);
-						connectionError();
-					}
-				}
-				else if (msg != null)
+				});
+			
+			try
+			{
+				this.chatConnection.sendPacket(msg, sendCb, this.sendTimeout);
+				synchronized(this.handler)
 				{
-					sendFailed(messageNumber);
+					this.handler.onSendAttempted(this, msg);
 				}
 			}
+			catch (IOException e)
+			{
+				sendCb.cancel();
+				throw e;
+			}
 		}
+		else
+		{
+			// Send failed.
+			synchronized(this.handler)
+			{
+				this.handler.onSendFailed(this, msg);
+			}
+			
+			this.chatConnection.close();
+		}
+	}
+	
+	private void sendTimedOut(SendMessage packet, int triesLeft)
+	{
+		// If connection gets dropped, will still trigger, so test that message is still in sendList.
+		// This also catches the case in which the client times out after the connection is dropped,
+		// because sendList gets emptied into delayedSend.
+		// Same mechanism also prevents resent attempts when the packet is ACKed.
+		if (this.sendList.containsKey(packet.getMessageID().getMessageNumber()))
+		{
+			try
+			{
+				trySend(packet, triesLeft);
+			}
+			catch (IOException e)
+			{
+			}
+		}
+	}
+	
+	private void sendAcknowledged(SendAck packet)
+	{
+		if (this.sendList.containsKey(packet.getMessageID().getMessageNumber()))
+		{
+			this.lastAcked = packet.getTimestamp();
+			this.sendList.remove(packet.getMessageID().getMessageNumber());
+			synchronized(this.handler)
+			{
+				this.handler.onSendAcknowledged(this, packet.getMessageID());
+			}
+		}
+	}
+	
+	private void tryReconnect(int triesLeft)
+	{
+		assertState(State.DROPPED);
+		this.state = State.RECONNECTING;
+		
+		ServerPriorityListing listing = getNextListing();
+		if (triesLeft > 0 && listing != null )
+		{
+			final Client callbackParent = this;
+			final int callbackTriesLeft = triesLeft;
+			TimeoutCallback reconnCb = new TimeoutCallback(new Runnable()
+				{
+					@Override
+					public void run()
+					{
+						callbackParent.reconnectTimedOut(callbackTriesLeft - 1);
+					}
+				});
+			
+			try
+			{
+				this.chatConnection = new ClientConnection(listing.getAddress().getHostAddress(), listing.getAddress().getPort(), 
+						new ReconnectHandler(this, triesLeft - 1, reconnCb));
+				this.chatConnection.sendPacket(new ClientReconnect(this.clientID, this.room, this.lastAcked, this.lastReceived), 
+						reconnCb, this.connectTimeout);
+			}
+			catch (IOException e)
+			{
+				// connection closed automatically or never opened in the first place.
+				reconnCb.cancel();
+				//connectRejected(triesLeft - 1);
+			}
+		}
+		else
+		{
+			this.chatConnection = null;
+			this.clientID = null;
+			
+			// Failed.
+			synchronized(this.handler)
+			{
+				this.handler.onDropped(this);
+			}
+			
+			this.disconnect();
+		}
+	}
+	
+	private void reconnectTimedOut(int triesLeft)
+	{
+		assertState(State.RECONNECTING);
+		// Indirectly calls connectRejected.
+		this.chatConnection.close();
+	}
+	
+	private void reconnectRejected(int triesLeft)
+	{
+		// Only relevant when trying to connect.
+		assertState(State.RECONNECTING);
+		
+		this.chatConnection = null;
+		this.state = State.DROPPED;
+		
+		synchronized(this.handler)
+		{
+			this.handler.onReconnectFailed(this);
+		}
+		
+		tryReconnect(triesLeft);
+	}
+	
+	private void reconnectSuccess(ConnectAck ack)
+	{
+		assertState(State.RECONNECTING);	
+		
+		this.serverID = ack.getServers().getSender();
+		updateServerList(ack.getServers());
+		
+		this.state = State.CONNECTED;
+		
+		synchronized(this.handler)
+		{
+			this.handler.onReconnected(this);
+		}
+		
+		tryClearSendBacklog();
+	}
+	
+	private class ReconnectHandler implements IClientHandler
+	{
+		private Client parent;
+		private int triesLeft;
+		private TimeoutCallback reconnectCallback;
+		
+		public ReconnectHandler(Client parent, int triesLeft, TimeoutCallback reconnectCallback)
+		{
+			this.parent = parent;
+			this.triesLeft = triesLeft;
+			this.reconnectCallback = reconnectCallback;
+		}
+		
+		@Override
+		public void onConnectionClosed(ClientConnection caller)
+		{
+			synchronized (parent)
+			{
+				synchronized (parent)
+				{
+					if (state == State.CONNECTING)
+					{
+						reconnectCallback.cancel();
+						reconnectRejected(triesLeft);
+					}
+					else if (state == State.CONNECTED)
+						connectDropped(); // Name is intentional, not reconnectDropped.
+					else
+						connectClosedUnknownState(); // Name is intentional, not reconnectClosedUnknownState.
+				}
+			}
+		}
+
+		@Override
+		public void onPacket(ClientConnection caller, ISendable packet)
+		{
+			synchronized (parent)
+			{
+				switch (packet.getPacketType())
+				{
+				case CONNECT_ACK:
+					reconnectCallback.cancel();
+					reconnectSuccess((ConnectAck)packet);
+					break;
+				case MESSAGE_DATA:
+					receivedMessage((MessageData)packet);
+					break;
+				case SERVER_UPDATE:
+					receivedServerUpdate((ServerUpdate)packet);
+				case SEND_ACK:
+					sendAcknowledged((SendAck)packet);
+					break;
+				default:
+					System.err.println("Detected server error: Unsupported packet type in chat connection.");
+					// Calls onConnectionClosed indirectly.
+					chatConnection.close();
+					break;
+				}
+			}
+		}
+	}
+
+	private void updateServerList(ServerUpdate serverData)
+	{
+		this.fallbacks.clear();
+		for (ServerPriorityListing listing : serverData.getServers())
+		{
+			// Don't add the currently connected server.
+			if (this.serverID != null && !this.serverID.equals(listing.getId()))
+				this.fallbacks.add(listing);
+		}
+		
+		synchronized(this.handler)
+		{
+			this.handler.onFallbackUpdate(this, serverData);
+		}
+	}
+	
+	private ServerPriorityListing getNextListing()
+	{
+		if (!this.fallbacks.isEmpty())
+		{
+			return this.fallbacks.remove();
+		}
+		else
+		{
+			return null;
+		}
+	}
+	
+	private int messageCounter = 0;
+	private int getNextMessageNumber()
+	{
+		int ret = messageCounter;
+		messageCounter++;
+		return ret;
+	}
+
+	private static long getCurrentTimestamp()
+	{
+		return Calendar.getInstance().getTimeInMillis();
+	}
+	
+	private void assertState(State s)
+	{
+		this.assertState(s.v);
+	}
+	
+	private void assertState(int s)
+	{
+		if ((s & this.state.v) == 0)
+			throw new RuntimeException("Client state error: inconsistent state.");
 	}
 }
