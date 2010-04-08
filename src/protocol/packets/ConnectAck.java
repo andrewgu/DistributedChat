@@ -1,9 +1,9 @@
 package protocol.packets;
 
-import protocol.ISendable;
 import protocol.PacketType;
+import protocol.ReplyPacket;
 
-public class ConnectAck implements ISendable
+public class ConnectAck extends ReplyPacket
 {
 	private static final long serialVersionUID = 1L;
 
@@ -16,8 +16,9 @@ public class ConnectAck implements ISendable
 	private ServerUpdate servers;
 	private long timestamp;
 
-	public ConnectAck(ServerUpdate servers, long timestamp)
+	public ConnectAck(ServerUpdate servers, long timestamp, int replyCode)
 	{
+		super(replyCode);
 		this.servers = servers;
 		this.timestamp = timestamp;
 	}

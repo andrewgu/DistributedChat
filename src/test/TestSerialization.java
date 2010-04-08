@@ -25,7 +25,7 @@ public class TestSerialization
     {
     	System.out.println("Starting basic serialization test.");
     	
-        FindRoom p = new FindRoom("room!");
+        FindRoom p = new FindRoom("room!", 1);
         PipedOutputStream out = new PipedOutputStream();
         PipedInputStream in = new PipedInputStream(out);
         ObjectOutputStream oout = new ObjectOutputStream(out);
@@ -52,7 +52,7 @@ public class TestSerialization
         
         System.out.println("Starting PacketReader and PacketWriter tests.");
         
-        p = new FindRoom("room!");
+        p = new FindRoom("room!", 2);
         out = new PipedOutputStream();
         in = new PipedInputStream(out);
         DataOutputStream dout = new DataOutputStream(out);

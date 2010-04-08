@@ -1,10 +1,10 @@
 package protocol.packets;
 
-import protocol.ISendable;
+import protocol.IReplyable;
 import protocol.PacketType;
 import protocol.data.ClientID;
 
-public class ClientConnect implements ISendable
+public class ClientConnect implements IReplyable
 {
 	private static final long serialVersionUID = 1L;
 
@@ -16,11 +16,13 @@ public class ClientConnect implements ISendable
 	
 	private ClientID client;
 	private String room;
+	private int replyCode;
 
-	public ClientConnect(ClientID client, String room)
+	public ClientConnect(ClientID client, String room, int replyCode)
 	{
 		this.client = client;
 		this.room = room;
+		this.replyCode = replyCode;
 	}
 
 	public ClientID getClient()
@@ -41,5 +43,11 @@ public class ClientConnect implements ISendable
 	public void setRoom(String room)
 	{
 		this.room = room;
+	}
+
+	@Override
+	public int getReplyCode()
+	{
+		return this.replyCode;
 	}
 }

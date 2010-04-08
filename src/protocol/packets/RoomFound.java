@@ -1,10 +1,10 @@
 package protocol.packets;
 
-import protocol.ISendable;
 import protocol.PacketType;
+import protocol.ReplyPacket;
 import protocol.data.ClientID;
 
-public class RoomFound implements ISendable
+public class RoomFound extends ReplyPacket
 {
 	private static final long serialVersionUID = 1L;
 
@@ -17,8 +17,9 @@ public class RoomFound implements ISendable
 	private ClientID clientID;
 	private ServerUpdate serverData;
 
-	public RoomFound(ClientID clientID, ServerUpdate serverData)
+	public RoomFound(ClientID clientID, ServerUpdate serverData, int replyCode)
 	{
+		super(replyCode);
 		this.clientID = clientID;
 		this.serverData = serverData;
 	}

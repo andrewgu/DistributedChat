@@ -12,8 +12,10 @@ import java.util.TreeSet;
 
 import protocol.ClientConnection;
 import protocol.IClientHandler;
+import protocol.IReplyHandler;
 import protocol.ISendable;
 import protocol.PacketType;
+import protocol.ReplyPacket;
 import protocol.TimeoutCallback;
 import protocol.data.ClientID;
 import protocol.data.MessageID;
@@ -201,82 +203,78 @@ public class Client
 		assertState(State.DISCONNECTED);
 		this.state = State.AUTHENTICATING;
 		
-		final Client callbackParent = this;
-		TimeoutCallback authCb = new TimeoutCallback(new Runnable()
-			{
-				@Override
-				public void run()
-				{
-					synchronized (callbackParent)
-					{
-						authConnectionTimedOut();
-					}
-				}
-			});
-		
-		// authCb gets cancelled by the handler.
 		try
 		{
-			this.authConnection = new ClientConnection(this.authHost, this.authPort, 
-				new AuthenticationHandler(this, authCb));	
-			this.authConnection.sendPacket(new FindRoom(this.room), authCb, this.connectTimeout);
+			this.authConnection = new ClientConnection(this.authHost, this.authPort, new AuthenticationHandler(this));
+			this.authConnection.sendReplyable(new FindRoom(this.room, this.authConnection.getUnusedReplyCode()), 
+					new AuthReplyHandler(this), this.connectTimeout);
 		}
 		catch (IOException e)
 		{
+			// No need to close stuff, authConnection closes itself on the IOException.
 			this.authConnection = null;
-			authCb.cancel();
 			throw e;
 		}
 	}
 	
-	private void authConnectionTimedOut()
+	private class AuthReplyHandler implements IReplyHandler
 	{
-		assertState(State.AUTHENTICATING);
-		this.authConnection.close();
-		// .close will trigger the handler's onConnectionClosed, which calls authConnectionClosed.
-		//authConnectionClosed();
-	}
-	
-	private void authConnectionClosed()
-	{
-		assertState(State.AUTHENTICATING);
+		private Client parent;
 		
-		synchronized(this.handler)
+		public AuthReplyHandler(Client parent)
 		{
-			this.handler.onAuthenticateFailed(this);
+			this.parent = parent;
 		}
 		
-		this.disconnect();
-	}
-	
-	private void authenticationSuccess(RoomFound packet)
-	{
-		assertState(State.AUTHENTICATING);
-		this.state = State.AUTHENTICATED;
-		
-		this.clientID = packet.getClientID();
-		updateServerList(packet.getServerData());
-		
-		this.authConnection.close();
-		this.authConnection = null;
-		
-		synchronized(this.handler)
+		@Override
+		public void onRejected(ClientConnection caller)
 		{
-			this.handler.onAuthenticated(this);
+			// Do nothing, will get reported to the AuthenticationHandler instead.
 		}
-		
-		tryConnect(this.maxReconnectRetries);
+
+		@Override
+		public void onReply(ClientConnection caller, ReplyPacket reply)
+		{
+			synchronized(parent)
+			{
+				assertState(State.AUTHENTICATING);
+				parent.state = State.AUTHENTICATED;
+				
+				RoomFound packet = (RoomFound)reply;
+				parent.clientID = packet.getClientID();
+				updateServerList(packet.getServerData());
+				
+				parent.authConnection.close();
+				parent.authConnection = null;
+				
+				synchronized(parent.handler)
+				{
+					parent.handler.onAuthenticated(parent);
+				}
+				
+				tryConnect(parent.maxReconnectRetries);
+			}
+		}
+
+		@Override
+		public void onTimeout(ClientConnection caller)
+		{
+			synchronized(parent)
+			{
+				assertState(State.AUTHENTICATING);
+				// .close will trigger the connection handler's onConnectionClosed.
+				parent.authConnection.close();
+			}
+		}
 	}
 
 	private class AuthenticationHandler implements IClientHandler
 	{
 		private Client parent;
-		private TimeoutCallback authCallback;
 		
-		public AuthenticationHandler(Client parent, TimeoutCallback authCallback)
+		public AuthenticationHandler(Client parent)
 		{
 			this.parent = parent;
-			this.authCallback = authCallback;
 		}
 		
 		@Override
@@ -284,9 +282,17 @@ public class Client
 		{
 			synchronized(parent)
 			{
-				authCallback.cancel();
 				if (state == State.AUTHENTICATING)
-					authConnectionClosed();
+				{
+					//assertState(State.AUTHENTICATING);
+					
+					synchronized(parent.handler)
+					{
+						parent.handler.onAuthenticateFailed(parent);
+					}
+					
+					parent.disconnect();
+				}
 			}
 		}
 
@@ -295,18 +301,8 @@ public class Client
 		{
 			synchronized(parent)
 			{
-				authCallback.cancel();
-				if (packet.getPacketType() == PacketType.ROOM_FOUND)
-				{
-					authenticationSuccess((RoomFound)packet);
-				}
-				else
-				{
-					System.err.println("Detected server error: Authentication server responded with packet that isn't ROOM_FOUND.");
-					authConnection.close();
-					// .close calls the onConnectionClosed handler.
-					//authConnectionClosed();
-				}
+				System.err.println("Detected server error: Authentication server responded with packet that isn't a proper reply.");
+				authConnection.close();
 			}
 		}
 	}
@@ -409,6 +405,12 @@ public class Client
 		this.sendList.clear();
 		
 		this.state = State.DROPPED;
+		
+		synchronized(this.handler)
+		{
+			this.handler.onCurrentServerDropped(this);
+		}
+		
 		this.tryReconnect(this.maxReconnectRetries);
 	}
 	

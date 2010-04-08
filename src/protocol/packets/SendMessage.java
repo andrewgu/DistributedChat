@@ -1,11 +1,11 @@
 package protocol.packets;
 
-import protocol.ISendable;
+import protocol.IReplyable;
 import protocol.PacketType;
 import protocol.data.ClientID;
 import protocol.data.MessageID;
 
-public class SendMessage implements ISendable
+public class SendMessage implements IReplyable
 {
 	private static final long serialVersionUID = 1L;
 
@@ -91,5 +91,12 @@ public class SendMessage implements ISendable
 	public void setTimestamp(long timestamp)
 	{
 		this.timestamp = timestamp;
+	}
+
+	@Override
+	public int getReplyCode()
+	{
+		// Message number is unique per client, so safe to use.
+		return this.messageID.getMessageNumber();
 	}
 }

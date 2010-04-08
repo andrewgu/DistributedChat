@@ -1,10 +1,10 @@
 package protocol.packets;
 
-import protocol.ISendable;
+import protocol.IReplyable;
 import protocol.PacketType;
 import protocol.data.ClientID;
 
-public class ClientReconnect implements ISendable
+public class ClientReconnect implements IReplyable
 {
 	private static final long serialVersionUID = 1L;
 
@@ -18,14 +18,16 @@ public class ClientReconnect implements ISendable
 	private String room;
 	private long lastAcked;
 	private long lastReceived;
+	private int replyCode;
 
 	public ClientReconnect(ClientID client, String room, long lastAcked,
-			long lastReceived)
+			long lastReceived, int replyCode)
 	{
 		this.client = client;
 		this.room = room;
 		this.lastAcked = lastAcked;
 		this.lastReceived = lastReceived;
+		this.replyCode = replyCode;
 	}
 
 	public ClientID getClient()
@@ -66,5 +68,11 @@ public class ClientReconnect implements ISendable
 	public void setLastReceived(long lastReceived)
 	{
 		this.lastReceived = lastReceived;
+	}
+
+	@Override
+	public int getReplyCode()
+	{
+		return this.replyCode;
 	}
 }

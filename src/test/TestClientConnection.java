@@ -70,7 +70,12 @@ public class TestClientConnection
 					reader.setBytes(data, 0, len);
 
 					FindRoom packet = (FindRoom) reader.readObject();
-					RoomFound response = new RoomFound(new ClientID(packet.getRoom(), 0), new ServerUpdate(packet.getRoom(), new ServerID(0, 0), new ServerPriorityListing[0]));
+					RoomFound response = new RoomFound(
+							new ClientID(packet.getRoom(), 0), 
+							new ServerUpdate(packet.getRoom(), 
+								new ServerID(0, 0), 
+								new ServerPriorityListing[0]), 
+							packet.getReplyCode());
 
 					// Got FIND_ROOM packet, respond with a ROOM_FOUND packet.
 					byte[] responseBytes = writer.getSerializedData(response);
@@ -95,7 +100,7 @@ public class TestClientConnection
 		// Starts listening for packets.
 		client.startReadLoop();
 		
-		client.sendPacket(new FindRoom("room!"));
+		client.sendPacket(new FindRoom("room!", client.getUnusedReplyCode()));
 		
 		client.close();
 		

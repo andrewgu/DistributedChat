@@ -1,10 +1,10 @@
 package protocol.packets;
 
-import protocol.ISendable;
 import protocol.PacketType;
+import protocol.ReplyPacket;
 import protocol.data.MessageID;
 
-public class SendAck implements ISendable
+public class SendAck extends ReplyPacket
 {
 	private static final long serialVersionUID = 1L;
 
@@ -18,8 +18,9 @@ public class SendAck implements ISendable
 	private long timestamp;
 	private MessageID messageID;
 
-	public SendAck(ServerUpdate serverUpdate, long timestamp, MessageID messageID)
+	public SendAck(ServerUpdate serverUpdate, long timestamp, MessageID messageID, int replyCode)
 	{
+		super(replyCode);
 		this.serverUpdate = serverUpdate;
 		this.timestamp = timestamp;
 		this.messageID = messageID;

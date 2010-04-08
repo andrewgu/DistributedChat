@@ -22,6 +22,9 @@ public interface IChatClientHandler
 	// Called when a reconnect attempt succeeds
 	void onReconnected(Client client);
 	
+	// Called when the current chat server connection is dropped. Immediately after calling, the client will
+	// attempt to reconnect.
+	void onCurrentServerDropped(Client caller);
 	// Called when a connect or reconnect attempt completely fails, i.e. out of retries or out of fallback servers.
 	void onDropped(Client caller);
 	// Called when the connection is disconnected. This happens either if the client calls disconnect or if the 
