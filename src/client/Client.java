@@ -206,7 +206,7 @@ public class Client
 		try
 		{
 			this.authConnection = new ClientConnection(this.authHost, this.authPort, new AuthenticationHandler(this));
-			this.authConnection.sendReplyable(new FindRoom(this.room, this.authConnection.getUnusedReplyCode()), 
+			this.authConnection.sendReplyable(new FindRoom(this.room, this.authConnection.getUniqueReplyCode()), 
 					new AuthReplyHandler(this), this.connectTimeout);
 		}
 		catch (IOException e)

@@ -100,7 +100,7 @@ public class TestClientConnection
 		// Starts listening for packets.
 		client.startReadLoop();
 		
-		client.sendPacket(new FindRoom("room!", client.getUnusedReplyCode()));
+		client.sendPacket(new FindRoom("room!", client.getUniqueReplyCode()));
 		
 		client.close();
 		

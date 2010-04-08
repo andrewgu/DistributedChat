@@ -5,6 +5,9 @@ import java.net.UnknownHostException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
 import java.nio.channels.ClosedChannelException;
+import java.security.InvalidParameterException;
+import java.util.HashMap;
+import java.util.Timer;
 
 import org.xsocket.MaxReadSizeExceededException;
 import org.xsocket.connection.ConnectionUtils;
@@ -20,6 +23,10 @@ public class ProtocolServer<_ATTACHMENT> implements
     private IServerHandler<_ATTACHMENT> handler;
     private Server server;
 
+    // Initializes a server using the given handler on the given port with the given number of threads. 
+    // The server automatically accepts connection requests. Any server event will trigger a call to the handler.
+    // To use the underlying connection, i.e. to send packets, intercept the IServerConnection object that is passed 
+    // to every method in the handler.
     public ProtocolServer(int port, int threads, IServerHandler<_ATTACHMENT> handler) throws UnknownHostException, IOException
     {
         this.handler = handler;
@@ -87,6 +94,20 @@ public class ProtocolServer<_ATTACHMENT> implements
         private IServerHandler<_ATTACHMENT> handler;
         private boolean closed;
         
+        public class ReplyableRecord
+        {
+        	public IServerReplyHandler<_ATTACHMENT> replyHandler;
+        	public TimeoutCallback timeoutCallback;
+        	public ReplyableRecord(IServerReplyHandler<_ATTACHMENT> handler, TimeoutCallback cb)
+        	{
+        		this.replyHandler = handler;
+        		this.timeoutCallback = cb;
+        	}
+        }
+        private HashMap<Integer, ReplyableRecord> replyables;
+        private int replyCodeCounter;
+        private Timer timer;
+        
         private PacketWriter writer;
         private PacketReader reader;
         
@@ -106,6 +127,10 @@ public class ProtocolServer<_ATTACHMENT> implements
             this.reader = new PacketReader();
             
             this.closed = false;
+            
+            this.replyables = new HashMap<Integer, ReplyableRecord>();
+            
+            this.timer = new Timer();
             
             // Exchange serialization headers for writer.
             // Reader is lazy-initialized on first packet read.
@@ -155,6 +180,63 @@ public class ProtocolServer<_ATTACHMENT> implements
             }
         }
         
+        public synchronized int getUniqueReplyCode()
+        {
+        	int r = this.replyCodeCounter;
+        	this.replyCodeCounter++;
+        	return r;
+        }
+        
+        @Override
+		public void sendReplyable(IReplyable replyable, IServerReplyHandler<_ATTACHMENT> replyHandler,
+				long timeoutMilliseconds) throws IOException
+		{
+        	if (closed)
+         		throw new IOException("Connection is closed.");
+         	
+         	if (this.replyables.containsKey(replyable.getReplyCode()))
+         		throw new InvalidParameterException("Cannot have duplicate reply code.");
+         	
+         	try
+         	{
+         		byte[] data = writer.getSerializedData(replyable);
+                this.sconn.write(data.length);
+                this.sconn.write(data, 0, data.length);
+                
+                final ServerConnection cbCaller = this;
+                final IServerReplyHandler<_ATTACHMENT> cbTimeoutHandler = replyHandler;
+                final int cbReplyCode = replyable.getReplyCode();
+                TimeoutCallback timeoutCallback = new TimeoutCallback(new Runnable()
+    				{
+    					@Override
+    					public void run()
+    					{
+    						synchronized(cbCaller)
+    						{
+    							if (cbCaller.replyables.containsKey(cbReplyCode))
+    							{
+    								cbCaller.replyables.remove(cbReplyCode);
+    								cbTimeoutHandler.onTimeout(cbCaller);
+    							}
+    						}
+    					}
+    				});
+                
+                this.replyables.put(replyable.getReplyCode(), new ReplyableRecord(replyHandler, timeoutCallback));
+                this.timer.schedule(timeoutCallback, timeoutMilliseconds);
+                
+                if (timeoutMilliseconds > 0)
+                	timer.schedule(timeoutCallback, timeoutMilliseconds);
+                else
+                	throw new InvalidParameterException("delayMilliseconds must be positive.");
+         	}
+         	catch (IOException e)
+         	{
+         		close();
+         		throw e;
+         	}
+		}
+        
         public synchronized void setAttachment(_ATTACHMENT attachment)
         {
             this.attachment = attachment;
@@ -182,7 +264,15 @@ public class ProtocolServer<_ATTACHMENT> implements
 				reader.close();
 				writer.close();
 				
-	            handler.onClose(this);
+				// Clear out the reply settings.
+				for (ReplyableRecord record : this.replyables.values())
+				{
+					record.timeoutCallback.cancel();
+					record.replyHandler.onRejected(this);
+				}
+				this.replyables.clear();
+				
+				handler.onClose(this);
         	}
         }
         
@@ -220,8 +310,29 @@ public class ProtocolServer<_ATTACHMENT> implements
             
             if (reader.isReady())
             {
+            	ISendable packet = reader.readObject();
 	            reader.setBytes(data, 0, length);
-				handler.onPacket(this, reader.readObject());
+	            
+	            if (packet instanceof ReplyPacket)
+	        	{
+		        	// If it's a reply packet and it has a valid reply code
+	        		ReplyPacket rp = (ReplyPacket)packet;
+	        		ReplyableRecord record = this.replyables.get(rp.getReplyPacketCode());
+	        		if (record != null)
+	        		{
+	        			this.replyables.remove(rp.getReplyPacketCode());
+	        			record.timeoutCallback.cancel();
+	        			record.replyHandler.onReply(this, rp);
+	        		}
+	        		else
+	        		{
+			        	handler.onPacket(this, packet);
+	        		}
+	        	}
+	            else
+	            {
+	            	handler.onPacket(this, packet);
+	            }
             }
             else
             {

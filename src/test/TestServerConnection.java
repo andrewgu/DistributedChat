@@ -30,7 +30,7 @@ public class TestServerConnection
 		ClientConnection client = new ClientConnection(InetAddress.getByName("localhost"), 9998, new TestClientHandler());
 		// Starts listening for packets.
 		client.startReadLoop();
-		client.sendPacket(new FindRoom("room!", client.getUnusedReplyCode()));
+		client.sendPacket(new FindRoom("room!", client.getUniqueReplyCode()));
 		//Thread.sleep(1000);
 		//client.close();
 	

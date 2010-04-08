@@ -95,10 +95,7 @@ public class ClientConnection
 			for (ReplyableRecord record : this.replyables.values())
 			{
 				record.timeoutCallback.cancel();
-				synchronized(record.replyHandler)
-				{
-					record.replyHandler.onRejected(this);
-				}
+				record.replyHandler.onRejected(this);
 			}
 			this.replyables.clear();
 			
@@ -109,7 +106,7 @@ public class ClientConnection
     	}
     }
     
-    public synchronized int getUnusedReplyCode()
+    public synchronized int getUniqueReplyCode()
     {
     	int r = this.replyCodeCounter;
     	this.replyCodeCounter++;
@@ -219,10 +216,7 @@ public class ClientConnection
 	        		{
 	        			this.replyables.remove(rp.getReplyPacketCode());
 	        			record.timeoutCallback.cancel();
-	        			synchronized(record.replyHandler)
-	        			{
-	        				record.replyHandler.onReply(this, rp);
-	        			}
+	        			record.replyHandler.onReply(this, rp);
 	        		}
 	        		else
 	        		{
