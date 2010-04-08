@@ -16,7 +16,7 @@ public class ConnectAck extends ReplyPacket
 	private ServerUpdate servers;
 	private long timestamp;
 
-	public ConnectAck(ServerUpdate servers, long timestamp, int replyCode)
+	public ConnectAck(ServerUpdate servers, long timestamp, long replyCode)
 	{
 		super(replyCode);
 		this.servers = servers;

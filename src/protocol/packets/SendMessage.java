@@ -94,7 +94,7 @@ public class SendMessage implements IReplyable
 	}
 
 	@Override
-	public int getReplyCode()
+	public long getReplyCode()
 	{
 		// Message number is unique per client, so safe to use.
 		return this.messageID.getMessageNumber();

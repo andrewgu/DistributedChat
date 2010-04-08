@@ -6,7 +6,7 @@ import protocol.PacketType;
 public class FindRoom implements IReplyable
 {
 	private static final long serialVersionUID = 1L;
-	private int replyCode;
+	private long replyCode;
 
 	@Override
 	public PacketType getPacketType()
@@ -16,7 +16,7 @@ public class FindRoom implements IReplyable
 	
 	private String room;
 
-	public FindRoom(String room, int replyCode)
+	public FindRoom(String room, long replyCode)
 	{
 		this.replyCode = replyCode;
 		this.room = room;
@@ -33,7 +33,7 @@ public class FindRoom implements IReplyable
 	}
 
 	@Override
-	public int getReplyCode()
+	public long getReplyCode()
 	{
 		return this.replyCode;
 	}

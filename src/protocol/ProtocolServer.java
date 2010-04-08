@@ -17,6 +17,8 @@ import org.xsocket.connection.IDisconnectHandler;
 import org.xsocket.connection.INonBlockingConnection;
 import org.xsocket.connection.Server;
 
+// NOTE: _ATTACHMENT is controlled here. In other words, each port will provide a service 
+//       with a unique _ATTACHMENT session object.
 public class ProtocolServer<_ATTACHMENT> implements 
     IConnectHandler, IDataHandler, IDisconnectHandler
 {   
@@ -47,6 +49,8 @@ public class ProtocolServer<_ATTACHMENT> implements
     {
     	server.close();
     }
+    
+    // As far as abstractions go, the stuff that happens down below doesn't really matter.
     
     @Override
     public boolean onConnect(INonBlockingConnection connection) throws IOException,
@@ -104,8 +108,8 @@ public class ProtocolServer<_ATTACHMENT> implements
         		this.timeoutCallback = cb;
         	}
         }
-        private HashMap<Integer, ReplyableRecord> replyables;
-        private int replyCodeCounter;
+        private HashMap<Long, ReplyableRecord> replyables;
+        private long replyCodeCounter;
         private Timer timer;
         
         private PacketWriter writer;
@@ -128,8 +132,8 @@ public class ProtocolServer<_ATTACHMENT> implements
             
             this.closed = false;
             
-            this.replyables = new HashMap<Integer, ReplyableRecord>();
-            
+            this.replyables = new HashMap<Long, ReplyableRecord>();
+            this.replyCodeCounter = 0;
             this.timer = new Timer();
             
             // Exchange serialization headers for writer.
@@ -180,9 +184,9 @@ public class ProtocolServer<_ATTACHMENT> implements
             }
         }
         
-        public synchronized int getUniqueReplyCode()
+        public synchronized long getUniqueReplyCode()
         {
-        	int r = this.replyCodeCounter;
+        	long r = this.replyCodeCounter;
         	this.replyCodeCounter++;
         	return r;
         }
@@ -205,7 +209,7 @@ public class ProtocolServer<_ATTACHMENT> implements
                 
                 final ServerConnection cbCaller = this;
                 final IServerReplyHandler<_ATTACHMENT> cbTimeoutHandler = replyHandler;
-                final int cbReplyCode = replyable.getReplyCode();
+                final long cbReplyCode = replyable.getReplyCode();
                 TimeoutCallback timeoutCallback = new TimeoutCallback(new Runnable()
     				{
     					@Override

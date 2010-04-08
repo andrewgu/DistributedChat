@@ -18,7 +18,7 @@ public class SendAck extends ReplyPacket
 	private long timestamp;
 	private MessageID messageID;
 
-	public SendAck(ServerUpdate serverUpdate, long timestamp, MessageID messageID, int replyCode)
+	public SendAck(ServerUpdate serverUpdate, long timestamp, MessageID messageID, long replyCode)
 	{
 		super(replyCode);
 		this.serverUpdate = serverUpdate;

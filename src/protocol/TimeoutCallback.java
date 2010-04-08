@@ -2,6 +2,8 @@ package protocol;
 
 import java.util.TimerTask;
 
+// Used internally by the ProtocolServer and ClientConnection for managing the reply
+// mechanism.
 public class TimeoutCallback extends TimerTask
 {
 	private Runnable callback;

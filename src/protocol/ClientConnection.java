@@ -32,8 +32,8 @@ public class ClientConnection
     		this.timeoutCallback = cb;
     	}
     }
-    private HashMap<Integer, ReplyableRecord> replyables;
-    private int replyCodeCounter;
+    private HashMap<Long, ReplyableRecord> replyables;
+    private long replyCodeCounter;
     
     private PacketReader reader;
     private PacketWriter writer;
@@ -62,7 +62,7 @@ public class ClientConnection
 		this.dos.writeInt(data.length);
 		this.dos.write(data);
 		
-		this.replyables = new HashMap<Integer, ReplyableRecord>();
+		this.replyables = new HashMap<Long, ReplyableRecord>();
 		this.replyCodeCounter = 0;
 		
 		this.timer = new Timer();
@@ -106,9 +106,9 @@ public class ClientConnection
     	}
     }
     
-    public synchronized int getUniqueReplyCode()
+    public synchronized long getUniqueReplyCode()
     {
-    	int r = this.replyCodeCounter;
+    	long r = this.replyCodeCounter;
     	this.replyCodeCounter++;
     	return r;
     }
@@ -148,7 +148,7 @@ public class ClientConnection
             
             final ClientConnection cbCaller = this;
             final IReplyHandler cbTimeoutHandler = replyHandler;
-            final int cbReplyCode = replyable.getReplyCode();
+            final long cbReplyCode = replyable.getReplyCode();
             TimeoutCallback timeoutCallback = new TimeoutCallback(new Runnable()
 				{
 					@Override

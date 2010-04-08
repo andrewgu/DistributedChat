@@ -17,7 +17,7 @@ public class RoomFound extends ReplyPacket
 	private ClientID clientID;
 	private ServerUpdate serverData;
 
-	public RoomFound(ClientID clientID, ServerUpdate serverData, int replyCode)
+	public RoomFound(ClientID clientID, ServerUpdate serverData, long replyCode)
 	{
 		super(replyCode);
 		this.clientID = clientID;

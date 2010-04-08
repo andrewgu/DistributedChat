@@ -16,9 +16,9 @@ public class ClientConnect implements IReplyable
 	
 	private ClientID client;
 	private String room;
-	private int replyCode;
+	private long replyCode;
 
-	public ClientConnect(ClientID client, String room, int replyCode)
+	public ClientConnect(ClientID client, String room, long replyCode)
 	{
 		this.client = client;
 		this.room = room;
@@ -46,7 +46,7 @@ public class ClientConnect implements IReplyable
 	}
 
 	@Override
-	public int getReplyCode()
+	public long getReplyCode()
 	{
 		return this.replyCode;
 	}

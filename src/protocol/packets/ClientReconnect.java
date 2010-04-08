@@ -18,10 +18,10 @@ public class ClientReconnect implements IReplyable
 	private String room;
 	private long lastAcked;
 	private long lastReceived;
-	private int replyCode;
+	private long replyCode;
 
 	public ClientReconnect(ClientID client, String room, long lastAcked,
-			long lastReceived, int replyCode)
+			long lastReceived, long replyCode)
 	{
 		this.client = client;
 		this.room = room;
@@ -71,7 +71,7 @@ public class ClientReconnect implements IReplyable
 	}
 
 	@Override
-	public int getReplyCode()
+	public long getReplyCode()
 	{
 		return this.replyCode;
 	}
