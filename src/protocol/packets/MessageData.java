@@ -17,22 +17,21 @@ public class MessageData implements ISendable
 	}
 	
 	private ServerUpdate serverUpdate;
-	private MessageID messageID;
-	private ClientID sender;
-	private String alias;
-	private long timestamp;
-	private String message;
-
+	private CoreMessage coreMessage;
+	
 	public MessageData(ServerUpdate serverUpdate, String room, String message,
 			MessageID messageID, ClientID sender, String alias, long timestamp)
 	{
 		this.serverUpdate = serverUpdate;
 		this.serverUpdate.setRoom(room);
-		this.messageID = messageID;
-		this.sender = sender;
-		this.alias = alias;
-		this.timestamp = timestamp;
-		this.message = message;
+		this.coreMessage = new CoreMessage(room, message, messageID, sender,
+				alias, timestamp);
+	}
+	
+	public MessageData(ServerUpdate serverUpdate, CoreMessage coreMessage) {
+		this.serverUpdate = serverUpdate;
+		this.coreMessage = coreMessage;
+		this.serverUpdate.setRoom(this.coreMessage.room);
 	}
 
 	public ServerUpdate getServerUpdate()
@@ -45,63 +44,16 @@ public class MessageData implements ISendable
 		this.serverUpdate = serverUpdate;
 	}
 
-	public String getRoom()
+	public CoreMessage getCoreMessage()
 	{
-		return this.serverUpdate.getRoom();
+		return this.coreMessage;
 	}
-
-	public void setRoom(String room)
-	{
-		this.serverUpdate.getRoom();
+	
+	public MessageID getMessageID() {
+		return coreMessage.messageID;
 	}
-
-	public MessageID getMessageID()
-	{
-		return messageID;
-	}
-
-	public void setMessageID(MessageID messageID)
-	{
-		this.messageID = messageID;
-	}
-
-	public ClientID getSender()
-	{
-		return sender;
-	}
-
-	public void setSender(ClientID sender)
-	{
-		this.sender = sender;
-	}
-
-	public String getAlias()
-	{
-		return alias;
-	}
-
-	public void setAlias(String alias)
-	{
-		this.alias = alias;
-	}
-
-	public long getTimestamp()
-	{
-		return timestamp;
-	}
-
-	public void setTimestamp(long timestamp)
-	{
-		this.timestamp = timestamp;
-	}
-
-	public String getMessage()
-	{
-		return message;
-	}
-
-	public void setMessage(String message)
-	{
-		this.message = message;
+	
+	public long getTimestamp() {
+		return coreMessage.timestamp;
 	}
 }
