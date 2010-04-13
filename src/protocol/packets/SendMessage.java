@@ -21,6 +21,7 @@ public class SendMessage implements IReplyable
 	private MessageID messageID;
 	private String message;
 	private long timestamp;
+	private long replyCode;
 
 	public SendMessage(String room, String alias, ClientID clientID,
 			MessageID messageID, String message, long timestamp)
@@ -31,6 +32,7 @@ public class SendMessage implements IReplyable
 		this.messageID = messageID;
 		this.message = message;
 		this.timestamp = timestamp;
+		this.replyCode = this.messageID.getMessageNumber();
 	}
 
 	public String getRoom()
@@ -92,11 +94,16 @@ public class SendMessage implements IReplyable
 	{
 		this.timestamp = timestamp;
 	}
+	
+	public void setReplyCode(long replyCode)
+	{
+		this.replyCode = replyCode;
+	}
 
 	@Override
 	public long getReplyCode()
 	{
 		// Message number is unique per client, so safe to use.
-		return this.messageID.getMessageNumber();
+		return this.replyCode;
 	}
 }

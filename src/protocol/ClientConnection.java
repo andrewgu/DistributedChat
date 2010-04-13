@@ -145,39 +145,39 @@ public class ClientConnection
      		byte[] data = writer.getSerializedData(replyable);
         	dos.writeInt(data.length);
             dos.write(data);
-            
-            final ClientConnection cbCaller = this;
-            final IReplyHandler cbTimeoutHandler = replyHandler;
-            final long cbReplyCode = replyable.getReplyCode();
-            TimeoutCallback timeoutCallback = new TimeoutCallback(new Runnable()
-				{
-					@Override
-					public void run()
-					{
-						synchronized(cbCaller)
-						{
-							if (cbCaller.replyables.containsKey(cbReplyCode))
-							{
-								cbCaller.replyables.remove(cbReplyCode);
-								cbTimeoutHandler.onTimeout(cbCaller);
-							}
-						}
-					}
-				});
-            
-            this.replyables.put(replyable.getReplyCode(), new ReplyableRecord(replyHandler, timeoutCallback));
-            this.timer.schedule(timeoutCallback, delayMilliseconds);
-            
-            if (delayMilliseconds > 0)
-            	timer.schedule(timeoutCallback, delayMilliseconds);
-            else
-            	throw new InvalidParameterException("delayMilliseconds must be positive.");
      	}
      	catch (IOException e)
      	{
      		close();
      		throw e;
      	}
+     	
+     	final ClientConnection cbCaller = this;
+        final IReplyHandler cbTimeoutHandler = replyHandler;
+        final long cbReplyCode = replyable.getReplyCode();
+        TimeoutCallback timeoutCallback = new TimeoutCallback(new Runnable()
+			{
+				@Override
+				public void run()
+				{
+					synchronized(cbCaller)
+					{
+						if (cbCaller.replyables.containsKey(cbReplyCode))
+						{
+							cbCaller.replyables.remove(cbReplyCode);
+							cbTimeoutHandler.onTimeout(cbCaller);
+						}
+					}
+				}
+			});
+        
+        this.replyables.put(replyable.getReplyCode(), new ReplyableRecord(replyHandler, timeoutCallback));
+        this.timer.schedule(timeoutCallback, delayMilliseconds);
+        
+        if (delayMilliseconds > 0)
+        	timer.schedule(timeoutCallback, delayMilliseconds);
+        else
+        	throw new InvalidParameterException("delayMilliseconds must be positive.");
     }
     
     private void readPacket() throws IOException
