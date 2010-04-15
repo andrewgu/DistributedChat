@@ -6,6 +6,7 @@ import java.util.HashMap;
 
 import protocol.ISendable;
 import protocol.PacketType;
+import protocol.data.RoomCount;
 import protocol.data.ServerID;
 import protocol.data.ServerStats;
 
