@@ -1,12 +1,18 @@
 package protocol;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
+import java.util.Map.Entry;
 
 import protocol.data.ClientID;
 import protocol.data.ClientSession;
+import protocol.data.RoomCount;
+import protocol.packets.CoreMessage;
 
 /**
  * Organizes clients by ClientID and Room, providing functions for
@@ -71,5 +77,42 @@ public class ClientList {
 		if(sess != null) {
 			removeClient(sess);
 		}
+	}
+	
+	/**
+	 * Return an array of all the clients in a given chat room
+	 * 
+	 * @param roomName
+	 * @return
+	 */
+	public synchronized ClientSession[] getRoomClients(String roomName) {
+		Set<ClientSession> roomSet = this.clientsByRoom.get(roomName);
+		ClientSession[] ret = new ClientSession[0];
+		
+		if(roomSet == null) return null;
+		
+		return roomSet.toArray(ret);
+	}
+	
+	/**
+	 * Get a collection of counts for all the rooms currently hosted
+	 * on this server
+	 * 
+	 * @return
+	 */
+	public synchronized Collection<RoomCount> countRooms() {
+		RoomCount rc;
+		Entry<String, Set<ClientSession>> ent;
+		LinkedList<RoomCount> roomCounts = new LinkedList<RoomCount>();
+		Iterator<Entry<String, Set<ClientSession>>> it =
+			clientsByRoom.entrySet().iterator();
+
+		while(it.hasNext()) {
+			ent = it.next();
+			rc = new RoomCount(ent.getKey(), ent.getValue().size());
+			roomCounts.add(rc);
+		}
+		
+		return roomCounts;
 	}
 }

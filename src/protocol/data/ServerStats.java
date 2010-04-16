@@ -10,7 +10,7 @@ import java.io.Serializable;
  * @author dew47
  *
  */
-public class ServerStats implements Serializable {
+public class ServerStats implements Serializable, Comparable<ServerStats> {
 
 	private static final long serialVersionUID = 1L;
 
@@ -22,5 +22,15 @@ public class ServerStats implements Serializable {
 		this.id = id;
 		this.addr = addr;
 		this.load = load;
+	}
+
+	@Override
+	/**
+	 * This should sort such that the ServerStats are ordered
+	 * from most desirable to least desirable
+	 */
+	public int compareTo(ServerStats o) {
+		// TODO Auto-generated method stub
+		return 0;
 	}
 }

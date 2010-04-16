@@ -1,14 +1,22 @@
 package protocol.data;
 
+import java.io.IOException;
+
+import protocol.ISendable;
+import protocol.IServerConnection;
 import protocol.packets.ClientConnect;
 import protocol.packets.ClientReconnect;
+import protocol.packets.CoreMessage;
+import protocol.packets.MessageData;
 
 public class ClientSession {
 
+	private final IServerConnection<ClientSession> conn;
 	private ClientID id;
 	private String room;
 	
-	public ClientSession() {		
+	public ClientSession(IServerConnection<ClientSession> connection) {
+		this.conn = connection;
 	}
 
 	public void sessInit(ClientID client, String room) {
@@ -30,5 +38,14 @@ public class ClientSession {
 	
 	public String getRoom() {
 		return room;
+	}
+	
+	public void deliverPacketToClient(ISendable pkt) {
+		try {
+			conn.sendPacket(pkt);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 }

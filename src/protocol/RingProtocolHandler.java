@@ -48,7 +48,11 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession> 
 	}
 	
 	private void handleCoreMessage(CoreMessage cm) {
-		// forward onwards here
+
+	}
+	
+	public void forwardCoreMessage(CoreMessage cm) {
+		
 	}
 
 	@Override

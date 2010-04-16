@@ -19,7 +19,7 @@ import protocol.packets.CoreMessage;
 public class TimeBoundedMessageCache implements Runnable {
 
 	public static final long NO_WAIT = -1;
-	
+
 	private static final Comparator<CoreMessage> OLDEST_FIRST =
 		new Comparator<CoreMessage>() {
 		@Override
@@ -27,7 +27,8 @@ public class TimeBoundedMessageCache implements Runnable {
 			return ((Long) o1.timestamp).compareTo(o2.timestamp);
 		}
 	};
-	
+	private static final long SPIN_INT = 10;
+
 	private LinkedList<CoreMessage> cache;
 	private final long retentionPeriod;
 	private final long minWait;
@@ -43,20 +44,20 @@ public class TimeBoundedMessageCache implements Runnable {
 	public TimeBoundedMessageCache(long retentionPeriod, long minWait) {
 		this.retentionPeriod = retentionPeriod;
 		this.minWait = minWait;
-		
+
 		this.cache = new LinkedList<CoreMessage>();
 		this.oldestMessage = Long.MAX_VALUE; // so will decrease with addMessage()
 	}
-	
+
 	/**
-	 * Given the current time, find out the oldest message
-	 * that should stay in the cache.
+	 * Given the current time, find out the timestamp of the oldest
+	 * message that should stay in the cache.
 	 * @return the timestamp of that message
 	 */
 	public long discardHorizon() {
 		return System.currentTimeMillis() - this.retentionPeriod;
 	}
-	
+
 	/**
 	 * Add a message to the cache
 	 * @param cm the message (will be discarded if already too old)
@@ -65,10 +66,10 @@ public class TimeBoundedMessageCache implements Runnable {
 		if(cm.timestamp <= discardHorizon()) return;
 		if(cm.timestamp < this.oldestMessage)
 			this.oldestMessage = cm.timestamp;
-		
+
 		cache.add(cm);
 	}
-	
+
 	/**
 	 * Remove all of the messages that are timestamped before the
 	 * discard horizon.
@@ -80,26 +81,28 @@ public class TimeBoundedMessageCache implements Runnable {
 
 		int i = 0;
 		long disc = discardHorizon();
-		
-		while(cache.size() > 0){
+
+		while(cachesz() > 0){
 			if(cache.getFirst().timestamp > disc) break;
-			
+
 			cache.removeFirst();
 			i++;
 		}
-		
+
 		this.oldestMessage = cache.getFirst().timestamp;
-		
+
 		return i;
 	}
-	
+
 	/**
 	 * Get all message from a certain time onwards
 	 * 
 	 * @param from the certain time
 	 * @return the messages, in a linked list
 	 */
-	public synchronized LinkedList<CoreMessage> getAllMessagesFrom(long from) {
+	public synchronized LinkedList<CoreMessage>
+	getAllMessagesFrom(long from) {
+		
 		orderCache();		
 		LinkedList<CoreMessage> results = new LinkedList<CoreMessage>();
 		ListIterator<CoreMessage> lit = cache.listIterator();
@@ -110,7 +113,7 @@ public class TimeBoundedMessageCache implements Runnable {
 			if(cm.timestamp < from) continue;
 			results.add(cm);
 		}
-		
+
 		return results;
 	}
 
@@ -120,18 +123,32 @@ public class TimeBoundedMessageCache implements Runnable {
 	private synchronized void orderCache() {
 		Collections.sort(cache, OLDEST_FIRST);
 	}
-	
+
+	private synchronized int cachesz() {
+		return cache.size();
+	}
+
+
 	@Override
 	public void run() {
 		long untilNextRemoval;
-		
+
 		while(true) {
-			
+
+			// don't even bother while cache has nothing
+			// in it (also, this will ensure that oldestMessage
+			// has a non-bs value)
+			while(cachesz() == 0) {
+				try {
+					Thread.sleep(SPIN_INT);
+				} catch (InterruptedException e) {}
+			}
+
 			// determine whether this thread should sleep before
 			// culling entries
 			untilNextRemoval = this.oldestMessage - discardHorizon();
 			untilNextRemoval = Math.max(untilNextRemoval, minWait);
-			
+
 			// sleep, else cull
 			if(untilNextRemoval > 0) {
 				try {

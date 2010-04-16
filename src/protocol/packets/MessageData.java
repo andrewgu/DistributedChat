@@ -19,14 +19,6 @@ public class MessageData implements ISendable
 	private ServerUpdate serverUpdate;
 	private CoreMessage coreMessage;
 	
-	public MessageData(ServerUpdate serverUpdate, String room, String message,
-			MessageID messageID, ClientID sender, String alias, long timestamp)
-	{
-		this.serverUpdate = serverUpdate;
-		this.serverUpdate.setRoom(room);
-		this.coreMessage = new CoreMessage(room, message, messageID, sender,
-				alias, timestamp);
-	}
 	
 	public MessageData(ServerUpdate serverUpdate, CoreMessage coreMessage) {
 		this.serverUpdate = serverUpdate;

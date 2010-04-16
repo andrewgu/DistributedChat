@@ -22,10 +22,11 @@ public class CoreMessage implements ISendable {
 	public final String alias;
 	public final String room;
 	public final long timestamp;
+	public final long replycode;
 	public final String message;
 
 	public CoreMessage(String room, String message, MessageID messageID,
-			ClientID sender, String alias, long timestamp) {
+			ClientID sender, String alias, long timestamp, long replycode) {
 
 		this.messageID = messageID;
 		this.sender = sender;
@@ -33,6 +34,7 @@ public class CoreMessage implements ISendable {
 		this.room = room;
 		this.timestamp = timestamp;
 		this.message = message;
+		this.replycode = replycode;
 	}
 
 	@Override
