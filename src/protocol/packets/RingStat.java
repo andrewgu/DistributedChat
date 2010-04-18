@@ -3,6 +3,7 @@ package protocol.packets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Set;
 
 import protocol.ISendable;
 import protocol.PacketType;
@@ -66,7 +67,28 @@ public class RingStat implements ISendable {
 				globalRC.users += localRC.users;
 			}
 		}
-		
+	}
+	
+	/**
+	 * Get all of the room names we currently know about
+	 * 
+	 * @return
+	 */
+	public String[] getCurrentRoomListing() {
+		String[] ret = new String[0];
+		ret = this.globalRoomCounts.keySet().toArray(ret);
+		return ret;
+	}
+	
+	/**
+	 * Get all of the room count objects in their most up to date
+	 * state. This is only really useful after the RingStat has 
+	 * made the rounds.
+	 * 
+	 * @return
+	 */
+	public Collection<RoomCount> getCurrentRoomCounts() {
+		return this.globalRoomCounts.values();
 	}
 	
 	/**

@@ -1,13 +1,10 @@
-package protocol.data;
+package protocol;
 
 import java.io.IOException;
 
-import protocol.ISendable;
-import protocol.IServerConnection;
+import protocol.data.ClientID;
 import protocol.packets.ClientConnect;
 import protocol.packets.ClientReconnect;
-import protocol.packets.CoreMessage;
-import protocol.packets.MessageData;
 
 public class ClientSession {
 
@@ -40,7 +37,7 @@ public class ClientSession {
 		return room;
 	}
 	
-	public void deliverPacketToClient(ISendable pkt) {
+	public void deliverToClient(ISendable pkt) {
 		try {
 			conn.sendPacket(pkt);
 		} catch (IOException e) {

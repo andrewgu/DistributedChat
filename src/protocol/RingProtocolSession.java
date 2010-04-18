@@ -1,4 +1,4 @@
-package protocol.data;
+package protocol;
 
 public class RingProtocolSession {
 

@@ -5,7 +5,7 @@ import protocol.PacketType;
 import protocol.data.ServerID;
 import protocol.data.ServerPriorityListing;
 
-public class ServerUpdate implements ISendable
+public class ServerUpdate implements ISendable, Cloneable
 {
 	private static final long serialVersionUID = 1L;
 
@@ -14,11 +14,11 @@ public class ServerUpdate implements ISendable
 	{
 		return PacketType.SERVER_UPDATE;
 	}
-	
+
 	private String room;
 	private ServerID sender;
 	private ServerPriorityListing[] servers;
-	
+
 	public ServerUpdate(String room, ServerID sender, ServerPriorityListing[] servers)
 	{
 		this.room = room;
@@ -30,6 +30,7 @@ public class ServerUpdate implements ISendable
 	{
 		return room;
 	}
+
 
 	public void setRoom(String room)
 	{
@@ -55,4 +56,11 @@ public class ServerUpdate implements ISendable
 	{
 		this.servers = servers;
 	}
+	
+	@Override
+	public Object clone() throws CloneNotSupportedException {
+		// for now, a shallow copy is sufficient for our purposes
+		return super.clone();
+	}
+
 }

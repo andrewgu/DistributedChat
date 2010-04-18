@@ -1,5 +1,4 @@
 package protocol;
-import protocol.data.RingProtocolSession;
 import protocol.packets.RingStat;
 import protocol.packets.CoreMessage;
 

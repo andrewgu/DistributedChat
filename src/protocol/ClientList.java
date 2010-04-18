@@ -10,7 +10,6 @@ import java.util.Set;
 import java.util.Map.Entry;
 
 import protocol.data.ClientID;
-import protocol.data.ClientSession;
 import protocol.data.RoomCount;
 import protocol.packets.CoreMessage;
 

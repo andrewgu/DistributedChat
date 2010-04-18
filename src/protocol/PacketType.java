@@ -8,7 +8,6 @@ public enum PacketType
 	CLIENT_CONNECT,
 	CLIENT_RECONNECT,
 	SEND_MESSAGE,
-	FIND_ROOM,
 
 	// SERVER-->CLIENT MESSAGES
 	// ack types
@@ -17,9 +16,14 @@ public enum PacketType
 	// message components
 	MESSAGE_DATA,
 	SERVER_UPDATE,
-	ROOM_FOUND,
 
 	// INTRA RING MESSAGES
 	RING_STAT, // communicate server status
-	CORE_MESSAGE // pass a message along
+	CORE_MESSAGE, // pass a message along
+
+	// AUTH PROTOCOL MESSAGES
+	FIND_ROOM, // client --> authserver
+	ROOM_FOUND, // authserver --> client
+	RING_AUTH_UPDATE, // ring --> authserver
+	RING_DEATH, // ring --> authserver
 }

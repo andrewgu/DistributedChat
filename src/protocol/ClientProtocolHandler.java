@@ -1,16 +1,12 @@
+
 package protocol;
 
-import java.util.HashMap;
-import protocol.data.ClientID;
-import protocol.data.ClientSession;
-import protocol.data.MessageID;
 import protocol.packets.ClientConnect;
 import protocol.packets.ClientReconnect;
 import protocol.packets.ConnectAck;
 import protocol.packets.CoreMessage;
 import protocol.packets.MessageData;
 import protocol.packets.SendMessage;
-import protocol.packets.ServerUpdate;
 
 public class ClientProtocolHandler implements IServerHandler<ClientSession> {
 
@@ -30,8 +26,8 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession> {
 	@Override
 	public void onConnect(IServerConnection<ClientSession> connection) {
 
-
-		connection.setAttachment(null);
+		
+		connection.setAttachment(new ClientSession(connection));
 
 
 	}
@@ -45,11 +41,11 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession> {
 		// TODO what about FIND_ROOM? how does this get handled
 		switch(packet.getPacketType()) {
 		case CLIENT_CONNECT:
-			handleConnect(connection, sess, (ClientConnect) packet);
+			handleConnect(sess, (ClientConnect) packet);
 			break;
 
 		case CLIENT_RECONNECT:
-			handleReconnect(connection, sess, (ClientReconnect) packet);
+			handleReconnect(sess, (ClientReconnect) packet);
 			break;
 
 		case SEND_MESSAGE:
@@ -59,8 +55,7 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession> {
 		}
 	}
 
-	private void handleConnect(IServerConnection<ClientSession> connection, 
-			ClientSession sess, ClientConnect cn) {
+	private void handleConnect(ClientSession sess, ClientConnect cn) {
 		// init session and ack
 		sess.onConnect(cn);
 		ackConnect(sess, cn.getReplyCode());
@@ -68,8 +63,14 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession> {
 		clients.addClient(sess);
 	}
 
-	private void handleReconnect(IServerConnection<ClientSession> connection,
-			ClientSession sess, ClientReconnect crn) {
+	/**
+	 * Handle a client reconnect request
+	 * 
+	 * @param connection
+	 * @param sess
+	 * @param crn
+	 */
+	private void handleReconnect(ClientSession sess, ClientReconnect crn) {
 		// init session and ack
 		sess.onReconnect(crn);
 		ackConnect(sess, crn.getReplyCode());
@@ -77,14 +78,28 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession> {
 		clients.addClient(sess);
 	}
 	
+	/**
+	 * Acknowledge receipt of a ClientConnect or a ClientReconnect
+	 * object.
+	 * 
+	 * @param sess
+	 * @param replyCode
+	 */
 	private void ackConnect(ClientSession sess, long replyCode) {
-		// TODO proc server update
+		// prepare the packet
 		ConnectAck cak = new ConnectAck(statc.currentUpdate(),
 				System.currentTimeMillis(), replyCode);
 		
-		sess.deliverPacketToClient(cak);
+		// deliver
+		sess.deliverToClient(cak);
 	}
 
+	/**
+	 * Internal handler for SendMessage objects from Clients.
+	 * 
+	 * @param sess the ClientSession in question
+	 * @param snd the SendMessage
+	 */
 	private void handleSendMessage(ClientSession sess, SendMessage snd) {
 		// translate sent message into CoreMessage, adding timestamp
 		CoreMessage cm = 
@@ -93,13 +108,16 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession> {
 					snd.getAlias(), System.currentTimeMillis(),
 					snd.getReplyCode());
 
+		// deliver message to clients on this machine
 		this.deliverMessageLocally(cm);
+		
+		// pass on to other nodes
 		rph.forwardCoreMessage(cm);
 	}
 
 	/**
-	 * Deliver a message to all clients on this server that should
-	 * receive it.
+	 * Deliver a CoreMessage to all clients in the room, excluding,
+	 * if necessary, the sender.
 	 * 
 	 * @param cm the message object
 	 */
@@ -109,14 +127,14 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession> {
 		// just means there are no local clients on this machine
 		if(roomClients == null) return;
 
-		//TODO fill in these values
+		// prepare a wrapper for sending to clients
 		MessageData mdata = new MessageData(statc.currentUpdate(), cm);
 
 		int i;
 		for(i = 0; i < roomClients.length; i++) {
 			// deliver to all clients but the sender
 			if(roomClients[i].getClientID() != cm.sender)
-				roomClients[i].deliverPacketToClient(mdata);
+				roomClients[i].deliverToClient(mdata);
 		}
 	}
 
