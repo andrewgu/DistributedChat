@@ -23,5 +23,4 @@ public class ServerStats implements Serializable {
 		this.addr = addr;
 		this.load = load;
 	}
-
 }

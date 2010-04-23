@@ -6,6 +6,7 @@ import protocol.data.ServerID;
 
 public class RingDeath implements ISendable {
 
+	private static final long serialVersionUID = 1L;
 	public final ServerID serverID;
 	
 	public RingDeath(ServerID reportingServer) {
@@ -14,7 +15,6 @@ public class RingDeath implements ISendable {
 
 	@Override
 	public PacketType getPacketType() {
-		// TODO Auto-generated method stub
 		return PacketType.RING_DEATH;
 	}
 	

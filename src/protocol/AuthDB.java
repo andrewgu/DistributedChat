@@ -5,26 +5,26 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import protocol.data.AuthRingData;
 import protocol.data.ClientID;
-import protocol.data.RoomCount;
 import protocol.packets.RingAuthUpdate;
 import protocol.packets.ServerUpdate;
 
 public class AuthDB {
 	private Map<String, Integer> roomToRing;
-	private Map<Integer, ServerUpdate> serverToRing;
+	private Map<Integer, AuthRingData> ringToRingData;
 	private AtomicInteger clientCounter;
-	
+
 	public AuthDB() {
 		this.roomToRing = new HashMap<String, Integer>();
-		this.serverToRing = new HashMap<Integer, ServerUpdate>();
+		this.ringToRingData = new HashMap<Integer, AuthRingData>();
 		this.clientCounter = new AtomicInteger(0);
 	}
 
 	public ClientID newClientID(String room) {
 		return new ClientID(room, clientCounter.incrementAndGet());
 	}
-	
+
 	/**
 	 * Take an update from a ring and process it appropriately
 	 * 
@@ -32,20 +32,22 @@ public class AuthDB {
 	 */
 	public synchronized void processUpdate(RingAuthUpdate up) {
 
-		Integer ring;
+		int i;
 
-		for(RoomCount rc : up.roomCounts) {
-			ring = this.roomToRing.get(rc.name);
-			if(ring != null && rc.users == 0) {
-				// delete the room from the listing
-				this.roomToRing.remove(rc.name);
-			} else {
-				// update/add the listing
-				this.roomToRing.put(rc.name, up.serverID.getRing());
-			}
+		// update live room mappings
+		for(i = 0; i < up.liveRooms.length; i++) {
+			this.roomToRing.put(up.liveRooms[i], up.serverID.getRing());
 		}
 
-		this.serverToRing.put(up.serverID.getRing(), up.latestUpdate);
+		// remove dead rooms
+		for(i = 0; i < up.deadRooms.length; i++) {
+			this.roomToRing.remove(up.deadRooms[i]);
+		}
+
+		AuthRingData ard = new AuthRingData(up.serverID.getRing(),
+				up.state, up.latestUpdate);
+		// update ring mappings
+		this.ringToRingData.put(ard.ring, ard);
 	}
 
 	/**
@@ -55,7 +57,8 @@ public class AuthDB {
 	 */
 	public synchronized void processRingDeath(Integer ring) {
 		// remove server from room mappings
-		Iterator<Map.Entry<String,Integer>> it = roomToRing.entrySet().iterator();
+		Iterator<Map.Entry<String,Integer>> it =
+			roomToRing.entrySet().iterator();
 		Map.Entry<String,Integer> ent;
 
 		while(it.hasNext()) {
@@ -64,7 +67,7 @@ public class AuthDB {
 		}
 
 		// remove from update mapping
-		this.serverToRing.remove(ring);
+		this.ringToRingData.remove(ring);
 	}
 
 	/**
@@ -78,12 +81,50 @@ public class AuthDB {
 	}
 
 	/**
-	 * Get the latest ServerUpdate for a given server, if it exists
+	 * Get the latest ServerUpdate for a given ring, if it exists
 	 *
-	 * @param sid
+	 * @param ring
 	 * @return the update, or null if dne
 	 */
 	public synchronized ServerUpdate getUpdate(Integer ring) {
-		return this.serverToRing.get(ring);
+		AuthRingData ard = this.ringToRingData.get(ring);
+		
+		if(ard == null) return null;
+		
+		return ard.latestUpdate;
+	}
+	
+	/**
+	 * Get the ServerUpdate representing the most fit ring for
+	 * clients to attempt a connection.
+	 * 
+	 * @return
+	 */
+	public synchronized ServerUpdate mostFitRing() {
+		Iterator<AuthRingData> it = 
+			this.ringToRingData.values().iterator();
+		AuthRingData ard, normal, spawning;
+		ard = normal = spawning = null;
+		
+		while(it.hasNext()) {
+			ard = it.next();
+			
+			switch(ard.ringState) {
+			case NORMAL:
+				normal = ard;
+				break;
+				
+			case SPAWNING:
+				spawning = ard;
+				break;
+			}
+			
+			if(normal != null) break;
+		}
+		
+		// for now just return a normal or spawning server, or nothing
+		if(normal != null) return normal.latestUpdate;
+		else if(spawning != null) return spawning.latestUpdate;
+		else return null;
 	}
 }

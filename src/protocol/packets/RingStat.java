@@ -112,48 +112,7 @@ public class RingStat implements ISendable {
 		
 		return i != globalStats.size();
 	}
-	
-	/**
-	 * Remove a given server from the list of servers in the RingStat
-	 * @param remove the server to remove
-	 * @return true if server removed, false if does not exist in list
-	 */
-	public boolean removeServer(ServerID remove) {
-		int i;
-		ServerStats ss;
 		
-		for(i = 0; i < globalStats.size(); i++) {
-			ss = globalStats.get(i);
-			if(ss.id.equals(remove)) {
-				globalStats.remove(i);
-				break;
-			}
-		}
-		
-		return i != globalStats.size();
-	}
-	
-	/**
-	 * Get the ServerStats for the successor to the given node
-	 * @param cur the node for whose successors we are searching
-	 * @return null if cur is not in list, else successor
-	 */
-	public ServerStats getSuccessor(ServerID cur) {
-		ServerStats ss = null;
-		
-		for(int i = 0; i < globalStats.size(); i++) {
-			ss = globalStats.get(i);
-			if(ss.id.equals(cur)) {
-				i++;
-				i %= globalStats.size(); // wrap around to front of list
-				ss = globalStats.get(i);
-				break;
-			}
-			ss = null; // want to return null if never find
-		}
-		
-		return ss;
-	}
 	
 	public ArrayList<ServerStats> getServerListing() {
 		return new ArrayList<ServerStats>(globalStats);

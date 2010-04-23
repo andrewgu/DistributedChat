@@ -1,5 +1,6 @@
 package protocol;
 
-public class RingProtocolSession {
 
+public class RingProtocolSession {
+	
 }

@@ -41,7 +41,7 @@ public class StatCenter implements Runnable {
 	public final ServerAddress serverAddress;
 	private final LoadQueryable lq;
 	private long queryInt;
-	
+
 	/*
 	 * The objects pointed to here may be changed, but they 
 	 * should not be directly modified. It will interfere
@@ -52,6 +52,9 @@ public class StatCenter implements Runnable {
 	// this should be marked null whenever it needs to be updated
 	private ServerUpdate latestUpdate;
 
+	// this variable must be directly modified
+	private ArrayList<ServerStats> serverList;
+
 	public StatCenter(ServerID serverID, ServerAddress serverAddress, 
 			LoadQueryable lq, long queryInt) {
 		this.serverID = serverID;
@@ -61,6 +64,7 @@ public class StatCenter implements Runnable {
 		this.latestRingStat = null;
 		this.currentLoad = null;
 		this.latestUpdate = null;
+		this.serverList = null;
 	}
 
 	/**
@@ -100,7 +104,7 @@ public class StatCenter implements Runnable {
 			Collections.sort(stats, LOAD_SORTED_SS);
 			ServerPriorityListing[] servers =
 				new ServerPriorityListing[stats.size()];
-			
+
 			/*
 			 * Priority listing ascends with load stats,
 			 * since list is sorted, i == priority.
@@ -120,7 +124,7 @@ public class StatCenter implements Runnable {
 				latestUpdate = sup;
 			}
 		}
-		
+
 		// the synchronization order does make it possible
 		// that this object will be slightly out of date
 		try {
@@ -128,6 +132,72 @@ public class StatCenter implements Runnable {
 			return (ServerUpdate) sup.clone();
 		} catch (CloneNotSupportedException e) {
 			return null; // shouldn't make it here
+		}
+	}
+
+	/**
+	 * Get the successor for this node.
+	 * 
+	 * @return
+	 */
+	public ServerStats getSuccessor() {
+		return getSuccessor(this.serverID);
+	}
+
+	/**
+	 * Remove the successor for this node, provided it is possible
+	 * to do so.
+	 * @return
+	 */
+	public boolean removeSuccessor() {
+		ServerID remove = this.getSuccessor().id;
+		return this.removeServer(remove);
+	}
+
+	/**
+	 * Get the ServerStats for the successor to the given node
+	 * @param cur the node for whose successors we are searching
+	 * @return null if cur is not in list, else successor
+	 */
+	public ServerStats getSuccessor(ServerID cur) {
+		ServerStats ss = null;
+
+		synchronized(this.serverList) {
+
+			for(int i = 0; i < serverList.size(); i++) {
+				ss = serverList.get(i);
+				if(ss.id.equals(cur)) {
+					i++;
+					i %= serverList.size(); // wrap around to front of list
+					ss = serverList.get(i);
+					break;
+				}
+				ss = null; // want to return null if never find
+			}
+		}
+		return ss;
+	}
+
+	/**
+	 * Remove a given server from the list of servers in the RingStat
+	 * @param remove the server to remove
+	 * @return true if server removed, false if does not exist in list
+	 */
+	public boolean removeServer(ServerID remove) {
+		int i;
+		ServerStats ss;
+
+		synchronized(this.serverList) {
+
+			for(i = 0; i < serverList.size(); i++) {
+				ss = serverList.get(i);
+				if(ss.id.equals(remove)) {
+					serverList.remove(i);
+					break;
+				}
+			}
+
+			return i != serverList.size();
 		}
 	}
 
@@ -144,10 +214,10 @@ public class StatCenter implements Runnable {
 		synchronized(this.latestRingStat) {
 			rs = this.latestRingStat;
 		}
-		
+
 		return rs.getCurrentRoomListing();
 	}
-	
+
 	/**
 	 * Get a ServerUpdate object with the room set to the proper
 	 * room name.
@@ -161,28 +231,49 @@ public class StatCenter implements Runnable {
 		return su;
 	}
 
-
 	/**
 	 * A hook for other program components to report the latest
 	 * RingStat object.
 	 * 
 	 * @param rs
 	 */
-	public void updateRingStat(RingStat rs) {
+	public void registerRingStat(RingStat rs) {
 		synchronized(this.latestRingStat) {
 			this.latestRingStat = rs;
 		}
+
+		synchronized(this.serverList) {
+			this.serverList = rs.getServerListing();
+		}
+
 		// there is a possibility that in this brief interim,
 		// a client may receive an out of date serverupdate
 		synchronized(this.latestUpdate) {
 			this.latestUpdate = null;
 		}
 	}
-	
+
+	/**
+	 * Get the most recently updated ServerLoad
+	 * 
+	 * @return
+	 */
 	public ServerLoad getCurrentLoad() {
 		synchronized(this.currentLoad) {
 			return this.currentLoad;
 		}
+	}
+
+
+	/**
+	 * Get the most up to date ServerStats object for this
+	 * object.
+	 * 
+	 * @return
+	 */
+	public ServerStats getCurrentServerStats() {
+		return new ServerStats(this.serverID,
+				this.serverAddress, this.getCurrentLoad());		
 	}
 
 	@Override
@@ -199,7 +290,7 @@ public class StatCenter implements Runnable {
 			synchronized(currentLoad){
 				currentLoad = load;
 			}
-			
+
 			try {
 				Thread.sleep(queryInt);
 			} catch (InterruptedException e) {}

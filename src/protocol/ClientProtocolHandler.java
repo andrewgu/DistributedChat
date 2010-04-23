@@ -14,6 +14,7 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession> {
 	private RingProtocolHandler rph;
 	private ClientList clients;
 	private StatCenter statc;
+	private TimeBoundedMessageCache tbmc;
 
 
 
@@ -112,12 +113,13 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession> {
 		this.deliverMessageLocally(cm);
 		
 		// pass on to other nodes
-		rph.forwardCoreMessage(cm);
+		rph.forwardPacket(cm);
 	}
 
 	/**
 	 * Deliver a CoreMessage to all clients in the room, excluding,
-	 * if necessary, the sender.
+	 * if necessary, the sender. Cache message for the suggested
+	 * caching interval.
 	 * 
 	 * @param cm the message object
 	 */
@@ -136,6 +138,9 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession> {
 			if(roomClients[i].getClientID() != cm.sender)
 				roomClients[i].deliverToClient(mdata);
 		}
+		
+		// put message in message cache
+		tbmc.addMessage(cm);
 	}
 
 }

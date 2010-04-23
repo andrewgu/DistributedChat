@@ -66,32 +66,35 @@ public class AuthProtocolHandler implements IServerHandler<AuthSession> {
 			sup = auth.getUpdate(ring);
 		}
 
+		RoomFound response;
+		
+		/* Either we've found the ring that hosts this room, or we
+		 * will assign the chat to a ring.
+		 */
 		if(sup == null) {
-			//TODO what do here?
+			// NO ROOM FOUND
+			sup = auth.mostFitRing();
+		}
+		
+		response = new RoomFound(
+				auth.newClientID(fr.getRoom()), sup, fr.getReplyCode());
 
-
-		} else {
-			RoomFound rf = new RoomFound(
-					auth.newClientID(fr.getRoom()), sup, fr.getReplyCode());
-			try {
-				connection.sendPacket(rf);
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+		try {
+			connection.sendPacket(response);
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 
-		// we're done
+		// client is done with this server
 		connection.close();
 	}
 
 	private void handleRingUpdate(IServerConnection<AuthSession> connection, RingAuthUpdate up) {
-
 		// pretty simple. keep the connection open.
 		auth.processUpdate(up);
 	}
 
 	private void handleRingDeath(IServerConnection<AuthSession> connection, RingDeath death) {
-
 		// we stop talking after this
 		auth.processRingDeath(death.serverID.getRing());
 		connection.close();
