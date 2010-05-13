@@ -24,14 +24,15 @@ public enum PacketType
 	// AUTH PROTOCOL MESSAGES
 	FIND_ROOM, // client --> authserver
 	ROOM_FOUND, // authserver --> client
+	
 	RING_AUTH_UPDATE, // ring --> authserver
 	RING_DEATH, // ring --> authserver
 	
 	// BIN SERVER MESSAGES
-	BIN_NODE_REQUEST, // client --> bin server
-	BIN_NODE_REQUEST_RESPONSE, // bin server --> client in reply to NODE_REQUEST
-	BIN_FREE_REQUEST, // client --> bin server
-	BIN_FREE_REQUEST_RESPONSE, // bin server --> client in reply to FREE_REQUEST
-	BIN_ALLOCATE_REQUEST, // bin server --> client to notify client to initialize.
-	BIN_ALLOCATE_REQUEST_RESPONSE, // client --> bin server to ack.
+	BIN_NODE_REQUEST, // ring --> bin server
+	BIN_NODE_REQUEST_REPLY, // bin server --> ring in reply to NODE_REQUEST
+	BIN_FREE_REQUEST, // ring --> bin server
+	BIN_FREE_REQUEST_REPLY, // bin server --> ring in reply to FREE_REQUEST
+	BIN_ALLOCATE_REQUEST, // bin server --> ring to notify client to initialize.
+	BIN_ALLOCATE_REQUEST_REPLY, // ring --> bin server to ack.
 }

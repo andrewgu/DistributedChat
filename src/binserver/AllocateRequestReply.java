@@ -21,7 +21,7 @@ public class AllocateRequestReply extends ReplyPacket
     public PacketType getPacketType()
     {
         // TODO Auto-generated method stub
-        return PacketType.BIN_ALLOCATE_REQUEST_RESPONSE;
+        return PacketType.BIN_ALLOCATE_REQUEST_REPLY;
     }
     
     public boolean wasSuccessful()
