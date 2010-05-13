@@ -1,7 +1,11 @@
-package protocol;
+package server;
 
 import java.io.IOException;
 
+import protocol.AuthDB;
+import protocol.ISendable;
+import protocol.IServerConnection;
+import protocol.IServerHandler;
 import protocol.packets.FindRoom;
 import protocol.packets.RingAuthUpdate;
 import protocol.packets.RingDeath;

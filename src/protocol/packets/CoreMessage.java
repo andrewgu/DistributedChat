@@ -37,7 +37,7 @@ public class CoreMessage implements ISendable {
 	    this.message = msg.getMessage();
 	}
 	
-	public CoreMessage(String room, String message, MessageID messageID, //ClientID sender, 
+	/*public CoreMessage(String room, String message, MessageID messageID, //ClientID sender, 
 	        String alias, long timestamp, long replycode) {
 
 		this.messageID = messageID;
@@ -47,7 +47,7 @@ public class CoreMessage implements ISendable {
 		this.timestamp = timestamp;
 		this.message = message;
 		this.replycode = replycode;
-	}
+	}*/
 
 	@Override
 	public PacketType getPacketType() {

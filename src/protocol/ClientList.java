@@ -10,6 +10,7 @@ import java.util.Map.Entry;
 
 import protocol.data.ClientID;
 import protocol.data.RoomCount;
+import server.ClientSession;
 
 /**
  * Organizes clients by ClientID and Room, providing functions for

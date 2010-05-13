@@ -1,0 +1,74 @@
+package server;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import protocol.data.ClientID;
+import protocol.packets.CoreMessage;
+import protocol.packets.MessageData;
+
+public class Room
+{
+    private String name;
+    private Map<ClientID, ClientSession> clients;
+    private TimeBoundedMessageCache messages;
+    
+    public Room(String name, long retentionPeriod)
+    {
+        this.name = name;
+        this.clients = new HashMap<ClientID, ClientSession>();
+        this.messages = new TimeBoundedMessageCache(retentionPeriod);
+    }
+    
+    public synchronized String getName()
+    {
+        return name;
+    }
+    
+    // Adds and culls messages.
+    public synchronized void addMessage(CoreMessage msg)
+    {
+        this.messages.addMessage(msg);
+        broadcastMessage(msg);
+    }
+
+    public synchronized List<CoreMessage> getHistory()
+    {
+        return this.messages.getHistory();
+    }
+    
+    public synchronized int getHistoryLength()
+    {
+        return this.messages.getHistoryLength();
+    }
+    
+    public synchronized void addClient(ClientSession client)
+    {
+        this.clients.put(client.getClientID(), client);
+    }
+    
+    public synchronized void removeClient(ClientSession client)
+    {
+        this.clients.remove(client.getClientID());
+    }
+    
+    public synchronized boolean hasClient(ClientID clientID)
+    {
+        return this.clients.containsKey(clientID);
+    }
+    
+    public synchronized int numClients()
+    {
+        return clients.size();
+    }
+    
+    private void broadcastMessage(CoreMessage msg)
+    {
+        MessageData md = new MessageData(RingServer.Stats().getServerUpdate(name), msg);
+        for (ClientSession s : this.clients.values())
+        {
+            s.deliverToClient(md);
+        }
+    }
+}

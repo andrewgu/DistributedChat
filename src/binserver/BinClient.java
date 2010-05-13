@@ -2,12 +2,15 @@ package binserver;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
+
 import protocol.ClientConnection;
 import protocol.IClientHandler;
 import protocol.IReplyHandler;
 import protocol.ISendable;
 import protocol.PacketType;
 import protocol.ReplyPacket;
+import server.RingServer;
 
 public class BinClient
 {
@@ -30,11 +33,16 @@ public class BinClient
     public static void main(String[] args) throws IOException
     {
         boolean isHeadNode = args.length > 1 && args[1].equals("head");
-        initBinClient(args[0], isHeadNode);
-
-        synchronized(conn)
+        initBinClient(args[0]);
+        
+        if (isHeadNode)
         {
-            initServer(isHeadNode);
+            RingServer.startBase();
+            RingServer.startHead();    
+        }
+        else
+        {
+            free();
         }
     }
     
@@ -109,32 +117,17 @@ public class BinClient
         System.err.println("Got free confirmation");
     }
     
-    private static void initServer(boolean isHeadNode)
+    private static void allocateServer() throws UnknownHostException, IOException
     {
-        // TODO: Drew: implement code to run a server for this node here.
-        // Note: if this is a head node, the node won't start on the free pile.
-        // If it's not a head node, the node WILL start on the free pile.
-        System.err.println("Server initialized.");
+        RingServer.startBase();
     }
     
-    private static void allocateServer()
-    {
-        // TODO: Drew: add code here that needs to be run every time this node gets pulled
-        // off the free pile, before it's inserted into the ring.
-        // Add thrown exceptions as you like. The call to allocateServer is surrounded by a catch-all.
-        System.err.println("Server allocated.");
-    }
-    
-    private static void initBinClient(String binServerAddress, boolean isHeadNode) throws IOException
+    private static void initBinClient(String binServerAddress) throws IOException
     {
         binServerAddr = InetAddress.getByName(binServerAddress);
         conn = new ClientConnection(binServerAddr, BinServer.BIN_SERVER_PORT, new BinClientHandler());
         //readLoop = conn.startReadLoop();
         conn.startReadLoop();
-        
-        // Free if it's not a head node since head nodes have to start active.
-        if (!isHeadNode)
-            free();
     }
     
     private static class FreeRequestReplyHandler implements IReplyHandler

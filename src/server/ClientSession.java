@@ -1,7 +1,9 @@
-package protocol;
+package server;
 
 import java.io.IOException;
 
+import protocol.ISendable;
+import protocol.IServerConnection;
 import protocol.data.ClientID;
 import protocol.packets.ClientConnect;
 import protocol.packets.ClientReconnect;

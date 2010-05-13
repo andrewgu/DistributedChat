@@ -126,6 +126,7 @@ public class BinServerHandler implements IServerHandler<BinSession>
             {
                 try
                 {
+                    this.popped.isActive = true;
                     connection.sendPacket(new NodeRequestReply(this.packet, this.popped.nodeAddress));
                     System.err.println("Node request fulfilled.");
                 }

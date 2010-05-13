@@ -1,8 +1,12 @@
 
-package protocol;
+package server;
 
 import java.util.Calendar;
 
+import protocol.ClientList;
+import protocol.ISendable;
+import protocol.IServerConnection;
+import protocol.IServerHandler;
 import protocol.packets.ClientConnect;
 import protocol.packets.ClientReconnect;
 import protocol.packets.ConnectAck;

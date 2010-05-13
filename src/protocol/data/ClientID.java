@@ -56,4 +56,10 @@ public class ClientID implements Serializable, Comparable<ClientID>
 			return rm;
 		}
 	}
+
+    @Override
+    public int hashCode()
+    {
+        return (this.room.hashCode() << 8) + this.client;
+    }
 }

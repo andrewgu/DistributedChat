@@ -25,6 +25,7 @@ public enum PacketType
 	FIND_ROOM, // client --> authserver
 	ROOM_FOUND, // authserver --> client
 	
+	RING_INIT, // sent from head node to ring node to give it its server id
 	RING_AUTH_UPDATE, // ring --> authserver
 	RING_DEATH, // ring --> authserver
 	
