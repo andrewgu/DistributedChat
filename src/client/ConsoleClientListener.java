@@ -6,11 +6,11 @@ import java.io.InputStreamReader;
 import java.net.Socket;
 import java.net.UnknownHostException;
 
-public class ConsoleChatClientListener
+public class ConsoleClientListener
 {
     public static void main(String[] args) throws UnknownHostException, IOException
     {
-        Socket sock = new Socket("localhost", ConsoleChatClientHost.BROADCAST_PORT);
+        Socket sock = new Socket("localhost", ConsoleClient.BROADCAST_PORT);
         BufferedReader br = new BufferedReader(new InputStreamReader(sock.getInputStream()));
         
         try

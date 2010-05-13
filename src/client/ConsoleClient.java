@@ -15,7 +15,7 @@ import protocol.packets.MessageData;
 import protocol.packets.SendMessage;
 import protocol.packets.ServerUpdate;
 
-public class ConsoleChatClientHost implements IChatClientHandler
+public class ConsoleClient implements IChatClientHandler
 {
     public static final int BROADCAST_PORT = 44444;
     
@@ -34,7 +34,7 @@ public class ConsoleChatClientHost implements IChatClientHandler
         String room = args[2];
         String alias = args[3];
         
-        new ConsoleChatClientHost(args[0], port, room, alias).run();
+        new ConsoleClient(args[0], port, room, alias).run();
     }
     
     private Client client;
@@ -42,7 +42,7 @@ public class ConsoleChatClientHost implements IChatClientHandler
     private Socket listener;
     private BufferedWriter bw;
     
-    public ConsoleChatClientHost(String host, int port, String room, String alias) throws IOException
+    public ConsoleClient(String host, int port, String room, String alias) throws IOException
     {
         client = new Client(host, port, room, alias, this);
         ssock = new ServerSocket(BROADCAST_PORT);
