@@ -24,6 +24,8 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession>
 	@Override
 	public void onConnect(IServerConnection<ClientSession> connection) 
 	{	
+	    // TODO : Load balancing decisions.
+        // E.G. whether to reject clients
 		connection.setAttachment(new ClientSession(connection));
 	}
 

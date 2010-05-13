@@ -155,6 +155,7 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
         this.forwardPacket(rs);
         
         // TODO : Load balancing decisions.
+        // E.G. whether to kick clients
 	}
 
     private void findSuccessor(RingStat rs)

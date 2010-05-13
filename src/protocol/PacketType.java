@@ -36,4 +36,5 @@ public enum PacketType
 	BIN_FREE_REQUEST_REPLY, // bin server --> ring in reply to FREE_REQUEST
 	BIN_ALLOCATE_REQUEST, // bin server --> ring to notify client to initialize.
 	BIN_ALLOCATE_REQUEST_REPLY, // ring --> bin server to ack.
+	BIN_CLIENT_ADDRESS, // ring --> bin server to give the bin server a canonical domain name.
 }

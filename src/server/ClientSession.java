@@ -10,7 +10,7 @@ import protocol.packets.ClientReconnect;
 
 public class ClientSession {
 
-	private final IServerConnection<ClientSession> conn;
+	private IServerConnection<ClientSession> conn;
 	private ClientID id;
 	private String room;
 	
@@ -18,6 +18,13 @@ public class ClientSession {
 		this.conn = connection;
 		this.id = null;
 		this.room = null;
+	}
+	
+	public void kickClient()
+	{
+	    IServerConnection<ClientSession> temp = conn;
+	    conn = null;
+	    temp.close();
 	}
 
 	public void sessInit(ClientID client, String room) {

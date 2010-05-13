@@ -47,6 +47,9 @@ public class BinServerHandler implements IServerHandler<BinSession>
     {
         switch (packet.getPacketType())
         {
+        case BIN_CLIENT_ADDRESS:
+            connection.getAttachment().nodeAddress = ((BinClientAddress)packet).getName();
+            break;
         case BIN_NODE_REQUEST:
             this.nodeRequest((NodeRequest)packet, connection);
             break;

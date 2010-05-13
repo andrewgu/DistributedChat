@@ -2,12 +2,10 @@ package server;
 
 import java.io.IOException;
 
-import protocol.AuthDB;
 import protocol.ISendable;
 import protocol.IServerConnection;
 import protocol.IServerHandler;
 import protocol.packets.FindRoom;
-import protocol.packets.RingAuthUpdate;
 import protocol.packets.RingDeath;
 import protocol.packets.RoomFound;
 import protocol.packets.ServerUpdate;
@@ -21,7 +19,7 @@ import protocol.packets.ServerUpdate;
 
 public class AuthProtocolHandler implements IServerHandler<AuthSession> {
 
-	AuthDB auth;
+	//AuthDB auth;
 
 	@Override
 	public void onClose(IServerConnection<AuthSession> connection) {
@@ -63,11 +61,11 @@ public class AuthProtocolHandler implements IServerHandler<AuthSession> {
 	private void handleFindRoom(IServerConnection<AuthSession> connection,
 			FindRoom fr) {
 		ServerUpdate sup;
-		Integer ring = auth.getRing(fr.getRoom());
+		//Integer ring = auth.getRing(fr.getRoom());
 		if(ring == null) {
 			sup = null;
 		} else {
-			sup = auth.getUpdate(ring);
+		//	sup = auth.getUpdate(ring);
 		}
 
 		RoomFound response;

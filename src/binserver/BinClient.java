@@ -126,6 +126,7 @@ public class BinClient
     {
         binServerAddr = InetAddress.getByName(binServerAddress);
         conn = new ClientConnection(binServerAddr, BinServer.BIN_SERVER_PORT, new BinClientHandler());
+        conn.sendPacket(new BinClientAddress(binServerAddress));
         //readLoop = conn.startReadLoop();
         conn.startReadLoop();
     }
