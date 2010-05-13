@@ -7,7 +7,7 @@ import protocol.data.ServerPriorityListing;
 
 public class ServerUpdate implements ISendable, Cloneable
 {
-	private static final long serialVersionUID = 1L;
+	private static final long serialVersionUID = 2L;
 
 	@Override
 	public PacketType getPacketType()
@@ -21,8 +21,8 @@ public class ServerUpdate implements ISendable, Cloneable
 
 	public ServerUpdate(String room, ServerID sender, ServerPriorityListing[] servers)
 	{
-		this.room = room;
-		this.sender = sender;
+		this.room = new String(room);
+		this.sender = new ServerID(sender.getRing(), sender.getServerNumber());
 		this.servers = servers;
 	}
 

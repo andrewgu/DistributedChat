@@ -2,12 +2,11 @@ package protocol.packets;
 
 import protocol.ISendable;
 import protocol.PacketType;
-import protocol.data.ClientID;
 import protocol.data.MessageID;
 
 public class MessageData implements ISendable
 {
-	private static final long serialVersionUID = 1L;
+	private static final long serialVersionUID = 2L;
 
 	@Override
 	public PacketType getPacketType()
@@ -23,7 +22,8 @@ public class MessageData implements ISendable
 	public MessageData(ServerUpdate serverUpdate, CoreMessage coreMessage) {
 		this.serverUpdate = serverUpdate;
 		this.coreMessage = coreMessage;
-		this.serverUpdate.setRoom(this.coreMessage.room);
+		// Hack to get around serialization problems.
+		this.serverUpdate.setRoom(new String(this.coreMessage.room));
 	}
 
 	public ServerUpdate getServerUpdate()

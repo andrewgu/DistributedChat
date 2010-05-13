@@ -7,7 +7,7 @@ import protocol.data.MessageID;
 
 public class SendMessage implements IReplyable
 {
-	private static final long serialVersionUID = 1L;
+	private static final long serialVersionUID = 4L;
 
 	@Override
 	public PacketType getPacketType()
@@ -17,18 +17,18 @@ public class SendMessage implements IReplyable
 	
 	private String room;
 	private String alias;
-	private ClientID clientID;
+	//private ClientID clientID;
 	private MessageID messageID;
 	private String message;
 	private long timestamp;
 	private long replyCode;
 
-	public SendMessage(String room, String alias, ClientID clientID,
+	public SendMessage(String room, String alias, //ClientID clientID,
 			MessageID messageID, String message, long timestamp)
 	{
 		this.room = room;
 		this.alias = alias;
-		this.clientID = clientID;
+		//this.clientID = clientID;
 		this.messageID = messageID;
 		this.message = message;
 		this.timestamp = timestamp;
@@ -57,12 +57,12 @@ public class SendMessage implements IReplyable
 
 	public ClientID getClientID()
 	{
-		return clientID;
+		return this.messageID.getClientID();
 	}
 
 	public void setClientID(ClientID clientID)
 	{
-		this.clientID = clientID;
+		this.getMessageID().setClientID(clientID);
 	}
 
 	public MessageID getMessageID()

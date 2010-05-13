@@ -28,8 +28,8 @@ public class PacketWriter
 	
 	public byte[] getSerializedData(ISendable sendable) throws IOException
 	{
-		oout.reset();
 		bout.reset();
+		oout.reset();
 		oout.writeObject(sendable);
 		return bout.toByteArray();
 	}

@@ -49,8 +49,8 @@ public class ConsoleChatClient implements IChatClientHandler
             synchronized(System.out)
             {
                 System.out.print("> ");
-                line = reader.readLine();
             }
+            line = reader.readLine();
             close = !handleInput(line);
         }
     }
