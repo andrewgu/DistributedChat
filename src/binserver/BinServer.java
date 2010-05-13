@@ -1,10 +1,17 @@
 package binserver;
 
+import java.io.IOException;
+import java.net.UnknownHostException;
+
+import protocol.ProtocolServer;
+
 public class BinServer 
 {
     public static final int BIN_SERVER_PORT = 8190;
-	public static void main(String[] args) 
+	public static void main(String[] args) throws UnknownHostException, IOException 
 	{
-		// TODO Auto-generated method stub
+	    ProtocolServer<BinSession> binServer = new ProtocolServer<BinSession>(BIN_SERVER_PORT, 1, 
+	            new BinServerHandler());
+	    binServer.start();
 	}
 }

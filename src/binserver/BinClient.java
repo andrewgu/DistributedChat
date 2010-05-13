@@ -6,6 +6,7 @@ import protocol.ClientConnection;
 import protocol.IClientHandler;
 import protocol.IReplyHandler;
 import protocol.ISendable;
+import protocol.PacketType;
 import protocol.ReplyPacket;
 
 public class BinClient
@@ -27,23 +28,37 @@ public class BinClient
      */
     public static void main(String[] args) throws IOException
     {
-        initBinClient(args[0]);
+        boolean isHeadNode = args.length > 1 && args[1].equals("head");
+        initBinClient(args[0], isHeadNode);
 
         synchronized(conn)
         {
-            initServer(args.length > 1 && args[1].equals("head"));
+            initServer(isHeadNode);
         }
     }
     
     private static void initServer(boolean isHeadNode)
     {
-        // TODO: Drew: implement code to initialize server here.
+        // TODO: Drew: implement code to initialize a server for this node here.
+        // Note: if this is a head node, the node won't start on the free pile.
+        // If it's not a head node, the node WILL start on the free pile.
     }
     
-    private static void initBinClient(String binServerAddress) throws IOException
+    private static void allocateServer()
+    {
+        // TODO: Drew: add code here that needs to be run every time this node gets pulled
+        // off the free pile, before it's inserted into the ring.
+        // Add thrown exceptions as you like. The call to allocateServer is surrounded by a catch-all.
+    }
+    
+    private static void initBinClient(String binServerAddress, boolean isHeadNode) throws IOException
     {
         binServerAddr = InetAddress.getByName(binServerAddress);
         conn = new ClientConnection(binServerAddr, BinServer.BIN_SERVER_PORT, new BinClientHandler());
+        
+        // Free if it's not a head node since head nodes have to start active.
+        if (!isHeadNode)
+            free();
     }
     
     public static String request() throws IOException, NoFreeNodesException
@@ -222,7 +237,37 @@ public class BinClient
         @Override
         public void onPacket(ClientConnection caller, ISendable packet)
         {
-            // Not used.
+            // Can receive one type of packet: AllocateRequest.
+            if (packet.getPacketType() == PacketType.BIN_ALLOCATE_REQUEST)
+            {
+                try
+                {
+                    allocateServer();
+                }
+                catch (Exception e)
+                {
+                    try
+                    {
+                        conn.sendPacket(new AllocateRequestReply((AllocateReply)packet, false));
+                    }
+                    catch (IOException e1)
+                    {
+                        e1.printStackTrace();
+                    }
+                    
+                    return;
+                }
+                
+                try
+                {
+                    conn.sendPacket(new AllocateRequestReply((AllocateReply)packet, true));
+                }
+                catch (IOException e)
+                {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+            }
         }
     }
 }

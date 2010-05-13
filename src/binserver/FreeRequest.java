@@ -25,7 +25,7 @@ public class FreeRequest implements IReplyable
     public PacketType getPacketType()
     {
         // TODO Auto-generated method stub
-        return PacketType.FREE_REQUEST;
+        return PacketType.BIN_FREE_REQUEST;
     }
 
 }

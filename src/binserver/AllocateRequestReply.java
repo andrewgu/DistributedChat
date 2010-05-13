@@ -4,27 +4,28 @@ import protocol.IReplyable;
 import protocol.PacketType;
 import protocol.ReplyPacket;
 
-public class FreeRequestReply extends ReplyPacket
+public class AllocateRequestReply extends ReplyPacket
 {
     private static final long serialVersionUID = 1L;
+
+    private boolean successful;
     
-    private boolean success;
-    
-    protected FreeRequestReply(IReplyable replyable, boolean success)
+    protected AllocateRequestReply(IReplyable replyable, boolean successful)
     {
         super(replyable);
-        this.success = success;
+        
+        this.successful = successful;
     }
 
     @Override
     public PacketType getPacketType()
     {
         // TODO Auto-generated method stub
-        return PacketType.BIN_FREE_REQUEST_RESPONSE;
+        return PacketType.BIN_ALLOCATE_REQUEST_RESPONSE;
     }
     
     public boolean wasSuccessful()
     {
-        return success;
+        return this.successful;
     }
 }

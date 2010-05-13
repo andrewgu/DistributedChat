@@ -3,17 +3,17 @@ package binserver;
 import protocol.IReplyable;
 import protocol.PacketType;
 
-public class NodeRequest implements IReplyable
+public class AllocateReply implements IReplyable
 {
     private static final long serialVersionUID = 1L;
     
     private long replyCode;
     
-    public NodeRequest(long replyCode)
+    public AllocateReply(long replyCode)
     {
         this.replyCode = replyCode;
     }
-    
+
     @Override
     public long getReplyCode()
     {
@@ -24,8 +24,6 @@ public class NodeRequest implements IReplyable
     @Override
     public PacketType getPacketType()
     {
-        // TODO Auto-generated method stub
-        return PacketType.BIN_NODE_REQUEST;
+        return PacketType.BIN_ALLOCATE_REQUEST;
     }
-
 }

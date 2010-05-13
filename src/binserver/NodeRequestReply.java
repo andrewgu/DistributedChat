@@ -19,7 +19,7 @@ public class NodeRequestReply extends ReplyPacket
     @Override
     public PacketType getPacketType()
     {
-        return PacketType.NODE_REQUEST_RESPONSE;
+        return PacketType.BIN_NODE_REQUEST_RESPONSE;
     }
 
     public String getNodeAddress()

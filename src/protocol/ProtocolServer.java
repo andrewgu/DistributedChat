@@ -1,6 +1,7 @@
 package protocol;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.BufferOverflowException;
 import java.nio.BufferUnderflowException;
@@ -330,12 +331,26 @@ public class ProtocolServer<_ATTACHMENT> implements
 	        		}
 	        		else
 	        		{
-			        	handler.onPacket(this, packet);
+	        		    try
+	        		    {
+	        		        handler.onPacket(this, packet);
+	        		    }
+	        		    catch (Exception e)
+	        		    {
+	        		        throw new IOException(e);
+	        		    }
 	        		}
 	        	}
 	            else
 	            {
-	            	handler.onPacket(this, packet);
+	                try
+	                {
+	                    handler.onPacket(this, packet);
+	                }
+	                catch (Exception e)
+	                {
+	                    throw new IOException(e);
+	                }
 	            }
             }
             else
@@ -350,5 +365,31 @@ public class ProtocolServer<_ATTACHMENT> implements
 		{
 			handler.onConnect(this);
 		}
+
+        @Override
+        public InetAddress getRemoteAddress()
+        {
+            if (!this.closed)
+            {
+                return this.sconn.getRemoteAddress();
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        @Override
+        public int getRemotePort()
+        {
+            if (!this.closed)
+            {
+                return this.sconn.getRemotePort();
+            }
+            else
+            {
+                return -1;
+            }
+        }
     }
 }

@@ -28,8 +28,10 @@ public enum PacketType
 	RING_DEATH, // ring --> authserver
 	
 	// BIN SERVER MESSAGES
-	NODE_REQUEST, // client --> bin server
-	NODE_REQUEST_RESPONSE, // bin server --> client in reply to NODE_REQUEST
-	FREE_REQUEST, // client --> bin server
-	FREE_REQUEST_RESPONSE, // bin server --> client in reply to FREE_REQUEST
+	BIN_NODE_REQUEST, // client --> bin server
+	BIN_NODE_REQUEST_RESPONSE, // bin server --> client in reply to NODE_REQUEST
+	BIN_FREE_REQUEST, // client --> bin server
+	BIN_FREE_REQUEST_RESPONSE, // bin server --> client in reply to FREE_REQUEST
+	BIN_ALLOCATE_REQUEST, // bin server --> client to notify client to initialize.
+	BIN_ALLOCATE_REQUEST_RESPONSE, // client --> bin server to ack.
 }

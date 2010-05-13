@@ -1,5 +1,7 @@
 package protocol;
 
+import java.io.IOException;
+
 // The handler's methods should be implemented as thread-safe.
 // In other words, if the handler touches any shared resources, it must synchronize, because
 // the ProtocolServer makes no guarantees about when the handler will get called. However,
@@ -12,7 +14,7 @@ public interface IServerHandler<_ATTACHMENT>
     void onConnect(IServerConnection<_ATTACHMENT> connection);
     // Called whenever a packet arrives at the server. Use ISendable.getPacketType to determine
     // the PacketType (enum) in order to respond appropriately.
-    void onPacket(IServerConnection<_ATTACHMENT> connection, ISendable packet);
+    void onPacket(IServerConnection<_ATTACHMENT> connection, ISendable packet) throws IOException;
     // Called when the connection is closed. This can be called in three cases:
     // 1. the connection was dropped (network error)
     // 2. the other end closed the connection

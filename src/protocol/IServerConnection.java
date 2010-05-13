@@ -1,9 +1,15 @@
 package protocol;
 
 import java.io.IOException;
+import java.net.InetAddress;
 
 public interface IServerConnection<_ATTACHMENT>
 {
+    // Gets the InetAddress of the remote end.
+    InetAddress getRemoteAddress();
+    // Gets the port number on the remote end.
+    int getRemotePort();
+    
 	// Sends a packet to the other side of the connection. On the other end, it'll arrive and trigger a
 	// IServerHandler.onPacket event.
     void sendPacket(ISendable packet)  throws IOException;
