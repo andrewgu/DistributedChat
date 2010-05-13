@@ -13,7 +13,8 @@ public class ServerAddress implements Serializable
 	
 	public ServerAddress(String host, int port)
 	{
-		this.host = host;
+	    // Hack to get around serialization problems.
+		this.host = new String(host);
 		this.port = port;
 	}
 

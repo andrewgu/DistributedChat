@@ -36,6 +36,7 @@ public class PacketReader
 		{
 			bis.repeat();
 			return (ISendable)ois.readObject();
+			//return (ISendable)ois.readUnshared();
 		}
 		catch (ClassNotFoundException e)
 		{

@@ -14,7 +14,8 @@ public class ServerPriorityListing implements Serializable, Comparable<ServerPri
 			ServerAddress address)
 	{
 		this.priority = priority;
-		this.id = id;
+		// Hack for serialization.
+		this.id = new ServerID(id.getRing(), id.getServerNumber());
 		this.address = address;
 	}
 

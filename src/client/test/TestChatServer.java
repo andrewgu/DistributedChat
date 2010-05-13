@@ -27,12 +27,12 @@ public class TestChatServer
     public static final int PORT = 13001;
     public static final String ROOM = "test";
     
-    public static final int FORCE_CONNECT_RETRY = 1;
-    public static final int FORCE_RECONNECT_RETRY = 1;
+    public static final int FORCE_CONNECT_RETRY = 0;
+    public static final int FORCE_RECONNECT_RETRY = 0;
     public static final int FORCE_SEND_RETRY = 1;
     
     public static void main(String[] args) throws UnknownHostException, IOException
-    {
+    {   
         ProtocolServer<TestChatSession> server = new ProtocolServer<TestChatSession>(
                 PORT, 1, new TestChatHandler());
         server.start();
@@ -72,6 +72,11 @@ public class TestChatServer
         public IServerConnection<TestChatSession> getConnection()
         {
             return this.connection;
+        }
+        
+        public void setConnection(IServerConnection<TestChatSession> connection)
+        {
+            this.connection = connection;
         }
         
         public void setClientID(ClientID id)
@@ -129,6 +134,7 @@ public class TestChatServer
         public void onClose(IServerConnection<TestChatSession> connection)
         {
             println("Client connection closed.");
+            connection.getAttachment().setConnection(null);
         }
 
         @Override
@@ -162,24 +168,13 @@ public class TestChatServer
                 SendMessage packet) throws IOException
         {
             println("SEND request");
-            ClientID id = packet.getClientID();
-            TestChatSession session;
-            
-            if (clients.containsKey(id))
-            {
-                session = clients.get(id);
-                connection.setAttachment(session);
-            }
-            else
-            {
-                session = connection.getAttachment();
-                session.setClientID(id);
-                clients.put(id, session);
-            }
+            //ClientID id = packet.getClientID();
+            TestChatSession session = connection.getAttachment();
             
             if (session.getSendAttempts() < FORCE_SEND_RETRY)
             {
                 println("Forced ignore send.");
+                session.setSendAttempts(session.getSendAttempts()+1);
             }
             else
             {
@@ -189,9 +184,11 @@ public class TestChatServer
                 
                 for (TestChatSession s : clients.values())
                 {
-                    s.getConnection().sendPacket(new MessageData(getServerUpdate(), 
-                            new CoreMessage(ROOM, packet.getMessage(), packet.getMessageID(), 
-                                    packet.getClientID(), packet.getAlias(), getTimestamp(), packet.getReplyCode())));
+                    IServerConnection<TestChatSession> c = s.getConnection();
+                    if (c != null)
+                    {
+                        c.sendPacket(new MessageData(getServerUpdate(), new CoreMessage(packet)));
+                    }
                 }
                 
                 connection.sendPacket( new SendAck(
@@ -209,6 +206,7 @@ public class TestChatServer
             if (clients.containsKey(id))
             {
                 session = clients.get(id);
+                session.setConnection(connection);
                 connection.setAttachment(session);
             }
             else
@@ -221,13 +219,14 @@ public class TestChatServer
             if (session.getReconnectAttempts() < FORCE_RECONNECT_RETRY)
             {
                 println("Force close.");
+                session.setReconnectAttempts(session.getReconnectAttempts()+1);
                 connection.close();
             }
             else
             {
                 println("Accepted connect request.");
                 // reset
-                session.setConnectAttempts(0);
+                session.setReconnectAttempts(0);
                 connection.sendPacket(new ConnectAck(getServerUpdate(), getTimestamp(), packet.getReplyCode()));
             }
         }
@@ -242,6 +241,7 @@ public class TestChatServer
             if (clients.containsKey(id))
             {
                 session = clients.get(id);
+                session.setConnection(connection);
                 connection.setAttachment(session);
             }
             else
@@ -254,6 +254,7 @@ public class TestChatServer
             if (session.getConnectAttempts() < FORCE_CONNECT_RETRY)
             {
                 println("Force close.");
+                session.setConnectAttempts(session.getConnectAttempts()+1);
                 connection.close();
             }
             else

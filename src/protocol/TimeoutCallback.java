@@ -17,10 +17,11 @@ public class TimeoutCallback extends TimerTask
 	
 	public synchronized void run()
 	{
-		this.cancel();
-		
 		if (!cancelled)
+		{
+		    this.cancel();
 			callback.run();
+		}
 	}
 	
 	public synchronized boolean cancel()

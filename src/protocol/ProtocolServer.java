@@ -23,6 +23,15 @@ import org.xsocket.connection.Server;
 public class ProtocolServer<_ATTACHMENT> implements 
     IConnectHandler, IDataHandler, IDisconnectHandler
 {   
+    private static Timer timerSingleton = null;
+    private static Timer getTimer()
+    {
+        if (timerSingleton == null)
+            timerSingleton = new Timer(true);
+        
+        return timerSingleton;
+    }
+    
     private IServerHandler<_ATTACHMENT> handler;
     private Server server;
 
@@ -135,7 +144,7 @@ public class ProtocolServer<_ATTACHMENT> implements
             
             this.replyables = new HashMap<Long, ReplyableRecord>();
             this.replyCodeCounter = 0;
-            this.timer = new Timer(true);
+            this.timer = getTimer();
             
             // Exchange serialization headers for writer.
             // Reader is lazy-initialized on first packet read.
@@ -207,9 +216,10 @@ public class ProtocolServer<_ATTACHMENT> implements
          	
          	try
          	{
-         		byte[] data = writer.getSerializedData(replyable);
-                this.sconn.write(data.length);
-                this.sconn.write(data, 0, data.length);
+         		//byte[] data = writer.getSerializedData(replyable);
+                //this.sconn.write(data.length);
+                //this.sconn.write(data, 0, data.length);
+         	    this.sendPacket(replyable);
                 
                 final ServerConnection cbCaller = this;
                 final IServerReplyHandler<_ATTACHMENT> cbTimeoutHandler = replyHandler;
@@ -276,6 +286,8 @@ public class ProtocolServer<_ATTACHMENT> implements
 				this.replyables.clear();
 				
 				handler.onClose(this);
+				
+				// don't cancel the timer since it's a singleton.
         	}
         }
         

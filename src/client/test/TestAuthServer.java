@@ -9,12 +9,9 @@ import protocol.IServerHandler;
 import protocol.PacketType;
 import protocol.ProtocolServer;
 import protocol.data.ClientID;
-import protocol.data.ServerAddress;
 import protocol.data.ServerID;
-import protocol.data.ServerPriorityListing;
 import protocol.packets.FindRoom;
 import protocol.packets.RoomFound;
-import protocol.packets.ServerUpdate;
 
 public class TestAuthServer
 {

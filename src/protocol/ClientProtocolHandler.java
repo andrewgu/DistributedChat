@@ -133,7 +133,7 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession> {
 		int i;
 		for(i = 0; i < roomClients.length; i++) {
 			// deliver to all clients but the sender
-			if(roomClients[i].getClientID() != cm.sender)
+			if(roomClients[i].getClientID() != cm.messageID.getClientID())
 				roomClients[i].deliverToClient(mdata);
 		}
 		

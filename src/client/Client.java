@@ -169,7 +169,7 @@ public class Client
 		else if (this.state == State.RECONNECTING)
 		{
 			this.delayedSends.add(
-				new SendMessage(this.room, this.alias, this.clientID, 
+				new SendMessage(this.room, this.alias,  
 					new MessageID(this.clientID, getNextMessageNumber()), message, getCurrentTimestamp()));
 		}
 		else
@@ -318,7 +318,8 @@ public class Client
 	
 	private void connectClosedUnknownState()
 	{
-		System.err.println("Connection was dropped in an unsupported state: not CONNECTING or CONNECTED.");
+		System.err.println("Connection was dropped in an unsupported state: not CONNECTING, CONNECTED, or DISCONNECTED:");
+		System.err.println(this.state);
 		this.disconnect();
 	}
 	
@@ -344,7 +345,7 @@ public class Client
 	private void trySend(String message, int triesLeft) throws IOException
 	{
 		this.trySend(
-			new SendMessage(this.room, this.alias, this.clientID, 
+			new SendMessage(this.room, this.alias, 
 				new MessageID(this.clientID, getNextMessageNumber()), message, getCurrentTimestamp()), triesLeft);
 	}
 	
@@ -378,7 +379,7 @@ public class Client
 				this.handler.onSendFailed(this, msg);
 			}
 			
-			this.chatConnection.close();
+			//this.chatConnection.close();
 		}
 	}
 	
@@ -498,7 +499,7 @@ public class Client
 		for (ServerPriorityListing listing : serverData.getServers())
 		{
 			// Don't add the currently connected server.
-			if (this.serverID != null && !this.serverID.equals(listing.getId()))
+			if (this.serverID == null || !this.serverID.equals(listing.getId()))
 				this.fallbacks.add(listing);
 		}
 		
@@ -629,7 +630,7 @@ public class Client
 			synchronized(parent)
 			{
 				System.err.println("Detected server error: Authentication server responded with packet that isn't a proper reply.");
-				authConnection.close();
+				//authConnection.close();
 			}
 		}
 	}
@@ -768,7 +769,7 @@ public class Client
 				if (state == State.CONNECTED)
 					connectDropped();
 				// Failed initial connection attempt is handled by the reply handler.
-				else if (state != State.CONNECTING)
+				else if (state != State.CONNECTING && state != State.DISCONNECTED)
 					connectClosedUnknownState();
 			}
 		}

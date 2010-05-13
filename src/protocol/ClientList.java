@@ -1,7 +1,6 @@
 package protocol;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -11,7 +10,6 @@ import java.util.Map.Entry;
 
 import protocol.data.ClientID;
 import protocol.data.RoomCount;
-import protocol.packets.CoreMessage;
 
 /**
  * Organizes clients by ClientID and Room, providing functions for
