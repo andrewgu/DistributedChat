@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 
 import protocol.ProtocolServer;
+import protocol.data.ServerAddress;
+import protocol.data.ServerID;
 import binserver.BinClient;
 
 /*
@@ -20,6 +22,8 @@ public class RingServer
     public static final int AUTH_THREADS = 1;
     public static final int RING_THREADS = 1;
     public static final int CLIENT_THREADS = 1;
+    
+    public static final int DEFAULT_RING = 0;
     
     private static ProtocolServer<ClientSession> clientService = null;
     private static ProtocolServer<AuthSession> authService = null;
@@ -46,8 +50,18 @@ public class RingServer
         ringService.start();
     }
     
-    public static void startHead() throws UnknownHostException, IOException
+    public static void initHead(String serverName) throws UnknownHostException, IOException
     {
+        statCenter.initNode(new ServerID(DEFAULT_RING, Integer.MAX_VALUE), 
+                new ServerAddress(serverName, RING_PORT));
+        
+        startHead();
+        
+        ringHandler.startRingStat();
+    }
+
+    public static void startHead() throws UnknownHostException, IOException
+    {   
         authHandler = new AuthProtocolHandler();
         authService = new ProtocolServer<AuthSession>(AUTH_PORT, AUTH_THREADS,
                 authHandler);

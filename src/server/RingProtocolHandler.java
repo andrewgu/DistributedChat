@@ -6,11 +6,15 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 
+import binserver.BinClient;
+import binserver.NoFreeNodesException;
+
 import protocol.ClientConnection;
 import protocol.IClientHandler;
 import protocol.ISendable;
 import protocol.IServerConnection;
 import protocol.IServerHandler;
+import protocol.data.ServerID;
 import protocol.data.ServerStats;
 import protocol.packets.CoreMessage;
 import protocol.packets.RingInitPacket;
@@ -18,13 +22,13 @@ import protocol.packets.RingStat;
 
 public class RingProtocolHandler implements IServerHandler<RingProtocolSession> 
 {	
-    public static final int MAX_CLIENT_COUNT = 150;
+    public static final int MAX_CLIENT_COUNT = 100;
     public static final float THRESHOLD_CLIENT_LOAD = 0.7f;
-    public static final float IDLE_CLIENT_LOAD = 0.3f;
+    public static final float RELIEF_LOAD = 0.5f;
+    public static final float IDLE_CLIENT_LOAD = 0.2f;
     // 5 minutes
     public static final long ROOM_RETENTION_PERIOD = 300000;
     
-	private IServerConnection<RingProtocolSession> inLink;
 	private ClientConnection outLink;
     
     // Map of clients by room name
@@ -34,7 +38,6 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
 	
 	public RingProtocolHandler()
 	{
-	    inLink = null;
 	    outLink = null;
 	    rooms = new HashMap<String,Room>();
 	    queuedOutgoing = new LinkedList<ISendable>();
@@ -74,23 +77,22 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
             r = new Room(cm.room, ROOM_RETENTION_PERIOD);
             this.rooms.put(cm.room, r);
         }
-	    r.addMessage(cm);
 	    
-	    // 2. Forwards.
-	    this.forwardPacket(cm);
-	    
-	    // TODO : Check that this is actually the originating node?
+	    if (r.addMessage(cm))
+	    {
+    	    // 2. Forwards.
+    	    this.forwardPacket(cm);
+	    }
+	    else
+	    {
+	        System.err.println("Originating node for message does not contain the sender.");
+	    }
 	}
 	
 	@Override
 	public synchronized void onConnect(IServerConnection<RingProtocolSession> connection) 
 	{
-	    // Only allow one incoming link at a time on the Ring protocol.
-	    if (this.inLink != null)
-	        this.inLink.close();
-	    
 		connection.setAttachment(new RingProtocolSession());
-		this.inLink = connection;
 	}
 
 	@Override
@@ -122,8 +124,6 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
 	@Override
     public synchronized void onClose(IServerConnection<RingProtocolSession> connection) 
     {
-	    // Pray for the best.
-        this.inLink = null;
     }
 	
 	private void handleRingInit(RingInitPacket packet)
@@ -146,7 +146,8 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
         // Update individual room counts on the existing RingStat.
         float load = updateLoads(rs);
         // Update server load.
-        rs.updateLoad(RingServer.Stats().getServerID(), load);
+        ServerID self = RingServer.Stats().getServerID();
+        rs.updateLoad(self, load);
         // Push the stats to the StatCenter
         RingServer.Stats().updateLoad(load);
         RingServer.Stats().updateRingStat(rs);
@@ -154,8 +155,7 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
         // Forward the RingStat to the next guy, but only if the connection exists
         this.forwardPacket(rs);
         
-        // TODO : Load balancing decisions.
-        // E.G. whether to kick clients
+        dynamicLoadBalance(self, load, rs);
 	}
 
     private void findSuccessor(RingStat rs)
@@ -239,12 +239,6 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
 			this.queuedOutgoing.add(pkt);
 	    }
 	}
-
-    private void headNodeUpdate(RingStat rs)
-    {
-        // TODO: Implement
-        // TODO: Be aware of the possibility that the head node is the only node in the ring.
-    }
 	
 	private class RingClientHandler implements IClientHandler
 	{   
@@ -262,17 +256,115 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
             {
                 // Try to grab the right successor from the last RingStat to pass by.
                 outLink = null;
-                findSuccessor(RingServer.Stats().getLatestRingStat());
+                //findSuccessor(RingServer.Stats().getLatestRingStat());
             }
         }
 
         @Override
         public void onPacket(ClientConnection caller, ISendable packet)
         {
-            synchronized(parent)
+            /*synchronized(parent)
             {
-                // TODO: Shouldn't be getting any packets?
+                // Shouldn't be getting any packets.
             }
+            */
         }
 	}
+
+    public void startRingStat()
+    {
+        RingStat starter = new RingStat(RingServer.Stats().getServerID(),
+                RingServer.Stats().getServerAddress());
+        
+        this.handleRingStat(starter);
+    }
+    
+    private boolean hasReliefLoad(ServerID self, RingStat rs)
+    {
+        for (ServerStats s : rs.getGlobalStats())
+        {
+            if (!s.id.equals(self) && s.load < RELIEF_LOAD)
+                return true;
+        }
+        return false;
+    }
+    
+    private void dynamicLoadBalance(ServerID self, float load, RingStat rs)
+    {
+        boolean hasRelief = hasReliefLoad(self, rs);
+        if (load >= THRESHOLD_CLIENT_LOAD && hasRelief)
+        {
+            // If above THRESHOLD and there is at least one below RELIEF, then offload excess.   
+            kickExcessNodes(load);
+        }
+        else if (load <= IDLE_CLIENT_LOAD && hasRelief)
+        {
+            // If below IDLE and there is at least one below RELIEF, then kick all clients
+            // and shrink the ring.
+            dropNode();
+        }
+    }
+
+    private void dropNode()
+    {
+        // Most drastic possible measure, just kicks everyone and everything.
+        RingServer.stop();
+    }
+
+    private void kickExcessNodes(float currentLoad)
+    {
+        int kickAmount = (int)((currentLoad - THRESHOLD_CLIENT_LOAD)*MAX_CLIENT_COUNT);
+        
+        outer:
+        for (Room r : this.rooms.values())
+        {
+            while (r.numClients() > 0)
+            {
+                r.kickOne();
+                kickAmount--;
+                if (kickAmount <= 0)
+                    break outer;
+            }
+        }
+    }
+    
+    private void headNodeUpdate(RingStat rs)
+    {
+        // Be aware of the possibility that the head node is the only node in the ring.
+        
+        // If all nodes are above THRESHOLD, then add a node.
+        if (allAboveThreshold(rs))
+        {
+            ServerID lowest = rs.getLowestServerID();
+            try
+            {
+                String nodeAddress = BinClient.request();
+                this.outLink.close();
+                this.outLink = new ClientConnection(InetAddress.getByName(nodeAddress), 
+                        RingServer.RING_PORT, new RingClientHandler(this));
+                this.outLink.sendPacket(new RingInitPacket(lowest.getRing(), 
+                        lowest.getServerNumber()-1, RingServer.RING_PORT, nodeAddress));
+            }
+            catch (NoFreeNodesException e)
+            {
+                // Give up.
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace();
+                throw new RuntimeException(e);
+                // throw and pray.
+            }
+        }
+    }
+
+    private boolean allAboveThreshold(RingStat rs)
+    {
+        for (ServerStats s : rs.getGlobalStats())
+        {
+            if (s.load < THRESHOLD_CLIENT_LOAD)
+                return false;
+        }
+        return true;
+    }
 }

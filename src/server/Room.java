@@ -76,4 +76,10 @@ public class Room
         }
         return clientFound;
     }
+
+    public void kickOne()
+    {
+        ClientSession s = clients.values().iterator().next();
+        s.kickClient();
+    }
 }

@@ -38,7 +38,7 @@ public class BinClient
         if (isHeadNode)
         {
             RingServer.startBase();
-            RingServer.startHead();    
+            RingServer.initHead(args[0]);    
         }
         else
         {
