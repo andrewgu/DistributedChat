@@ -38,34 +38,8 @@ public class BinClient
         }
     }
     
-    private static void initServer(boolean isHeadNode)
-    {
-        // TODO: Drew: implement code to run a server for this node here.
-        // Note: if this is a head node, the node won't start on the free pile.
-        // If it's not a head node, the node WILL start on the free pile.
-        System.err.println("Server initialized.");
-    }
-    
-    private static void allocateServer()
-    {
-        // TODO: Drew: add code here that needs to be run every time this node gets pulled
-        // off the free pile, before it's inserted into the ring.
-        // Add thrown exceptions as you like. The call to allocateServer is surrounded by a catch-all.
-        System.err.println("Server allocated.");
-    }
-    
-    private static void initBinClient(String binServerAddress, boolean isHeadNode) throws IOException
-    {
-        binServerAddr = InetAddress.getByName(binServerAddress);
-        conn = new ClientConnection(binServerAddr, BinServer.BIN_SERVER_PORT, new BinClientHandler());
-        //readLoop = conn.startReadLoop();
-        conn.startReadLoop();
-        
-        // Free if it's not a head node since head nodes have to start active.
-        if (!isHeadNode)
-            free();
-    }
-    
+    // Call this to request a new node from the Bin server. Returns the host name for use
+    // with InetAddress.getByName.
     public static String request() throws IOException, NoFreeNodesException
     {
         NodeRequestReplyHandler handler = new NodeRequestReplyHandler(); 
@@ -104,6 +78,7 @@ public class BinClient
         }
     }
     
+    // Tells the Bin server to put this node on the free node queue.
     public static void free() throws IOException
     {
         FreeRequestReplyHandler handler = new FreeRequestReplyHandler();
@@ -132,6 +107,34 @@ public class BinClient
         }
 
         System.err.println("Got free confirmation");
+    }
+    
+    private static void initServer(boolean isHeadNode)
+    {
+        // TODO: Drew: implement code to run a server for this node here.
+        // Note: if this is a head node, the node won't start on the free pile.
+        // If it's not a head node, the node WILL start on the free pile.
+        System.err.println("Server initialized.");
+    }
+    
+    private static void allocateServer()
+    {
+        // TODO: Drew: add code here that needs to be run every time this node gets pulled
+        // off the free pile, before it's inserted into the ring.
+        // Add thrown exceptions as you like. The call to allocateServer is surrounded by a catch-all.
+        System.err.println("Server allocated.");
+    }
+    
+    private static void initBinClient(String binServerAddress, boolean isHeadNode) throws IOException
+    {
+        binServerAddr = InetAddress.getByName(binServerAddress);
+        conn = new ClientConnection(binServerAddr, BinServer.BIN_SERVER_PORT, new BinClientHandler());
+        //readLoop = conn.startReadLoop();
+        conn.startReadLoop();
+        
+        // Free if it's not a head node since head nodes have to start active.
+        if (!isHeadNode)
+            free();
     }
     
     private static class FreeRequestReplyHandler implements IReplyHandler
@@ -277,7 +280,6 @@ public class BinClient
                 }
                 catch (IOException e)
                 {
-                    // TODO Auto-generated catch block
                     e.printStackTrace();
                 }
             }

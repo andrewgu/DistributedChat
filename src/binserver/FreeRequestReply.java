@@ -20,7 +20,7 @@ public class FreeRequestReply extends ReplyPacket
     public PacketType getPacketType()
     {
         // TODO Auto-generated method stub
-        return PacketType.BIN_FREE_REQUEST_RESPONSE;
+        return PacketType.BIN_FREE_REQUEST_REPLY;
     }
     
     public boolean wasSuccessful()
