@@ -26,4 +26,10 @@ public enum PacketType
 	ROOM_FOUND, // authserver --> client
 	RING_AUTH_UPDATE, // ring --> authserver
 	RING_DEATH, // ring --> authserver
+	
+	// BIN SERVER MESSAGES
+	NODE_REQUEST, // client --> bin server
+	NODE_REQUEST_RESPONSE, // bin server --> client in reply to NODE_REQUEST
+	FREE_REQUEST, // client --> bin server
+	FREE_REQUEST_RESPONSE, // bin server --> client in reply to FREE_REQUEST
 }
