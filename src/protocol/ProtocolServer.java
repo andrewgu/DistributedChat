@@ -135,7 +135,7 @@ public class ProtocolServer<_ATTACHMENT> implements
             
             this.replyables = new HashMap<Long, ReplyableRecord>();
             this.replyCodeCounter = 0;
-            this.timer = new Timer();
+            this.timer = new Timer(true);
             
             // Exchange serialization headers for writer.
             // Reader is lazy-initialized on first packet read.
@@ -202,6 +202,9 @@ public class ProtocolServer<_ATTACHMENT> implements
          	if (this.replyables.containsKey(replyable.getReplyCode()))
          		throw new InvalidParameterException("Cannot have duplicate reply code.");
          	
+            if (timeoutMilliseconds <= 0)
+                throw new InvalidParameterException("delayMilliseconds must be positive.");
+         	
          	try
          	{
          		byte[] data = writer.getSerializedData(replyable);
@@ -229,11 +232,6 @@ public class ProtocolServer<_ATTACHMENT> implements
                 
                 this.replyables.put(replyable.getReplyCode(), new ReplyableRecord(replyHandler, timeoutCallback));
                 this.timer.schedule(timeoutCallback, timeoutMilliseconds);
-                
-                if (timeoutMilliseconds > 0)
-                	timer.schedule(timeoutCallback, timeoutMilliseconds);
-                else
-                	throw new InvalidParameterException("delayMilliseconds must be positive.");
          	}
          	catch (IOException e)
          	{
@@ -315,8 +313,8 @@ public class ProtocolServer<_ATTACHMENT> implements
             
             if (reader.isReady())
             {
+                reader.setBytes(data, 0, length);
             	ISendable packet = reader.readObject();
-	            reader.setBytes(data, 0, length);
 	            
 	            if (packet instanceof ReplyPacket)
 	        	{
@@ -357,6 +355,8 @@ public class ProtocolServer<_ATTACHMENT> implements
             {
             	// Initialize the reader by setting the serialization header from the writer on the other end.
             	reader.setSerializationHeader(data, 0, length);
+            	// Mark the new progress marker for future reads.
+            	this.sconn.markReadPosition();
             	readPacket();
             }
         }

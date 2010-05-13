@@ -13,11 +13,12 @@ public class BinClient
 {
     private static InetAddress binServerAddr = null;
     private static ClientConnection conn = null;
+    //private static Thread readLoop = null;
     
     // in milliseconds
     public static final int REQUEST_POLL_INTERVAL = 100;
-    public static final int NODE_REQUEST_TIMEOUT = 30000;
-    public static final int FREE_REQUEST_TIMEOUT = 30000;
+    public static final int NODE_REQUEST_TIMEOUT = 300000;
+    public static final int FREE_REQUEST_TIMEOUT = 300000;
     
     /**
      * @param args The array of command line arguments for the nodes.
@@ -39,9 +40,10 @@ public class BinClient
     
     private static void initServer(boolean isHeadNode)
     {
-        // TODO: Drew: implement code to initialize a server for this node here.
+        // TODO: Drew: implement code to run a server for this node here.
         // Note: if this is a head node, the node won't start on the free pile.
         // If it's not a head node, the node WILL start on the free pile.
+        System.err.println("Server initialized.");
     }
     
     private static void allocateServer()
@@ -49,12 +51,15 @@ public class BinClient
         // TODO: Drew: add code here that needs to be run every time this node gets pulled
         // off the free pile, before it's inserted into the ring.
         // Add thrown exceptions as you like. The call to allocateServer is surrounded by a catch-all.
+        System.err.println("Server allocated.");
     }
     
     private static void initBinClient(String binServerAddress, boolean isHeadNode) throws IOException
     {
         binServerAddr = InetAddress.getByName(binServerAddress);
         conn = new ClientConnection(binServerAddr, BinServer.BIN_SERVER_PORT, new BinClientHandler());
+        //readLoop = conn.startReadLoop();
+        conn.startReadLoop();
         
         // Free if it's not a head node since head nodes have to start active.
         if (!isHeadNode)
@@ -63,62 +68,70 @@ public class BinClient
     
     public static String request() throws IOException, NoFreeNodesException
     {
+        NodeRequestReplyHandler handler = new NodeRequestReplyHandler(); 
+        
         synchronized(conn)
         {
-            NodeRequestReplyHandler handler = new NodeRequestReplyHandler(); 
             conn.sendReplyable(new NodeRequest(conn.getUniqueReplyCode()), 
                     handler, NODE_REQUEST_TIMEOUT);
-            
-            try
-            {
-                while (!handler.isReady())
-                    Thread.sleep(REQUEST_POLL_INTERVAL);
-            }
-            catch (InterruptedException e)
-            {
-                System.err.println("BinClient.request interrupted in poll loop.");
-                throw new IOException(e);
-            }
-            
-            if (handler.isError())
-            {
-                throw new IOException("BinClient: connection error to BinServer.");
-            }
+            System.err.println("Requested node.");
+        }
+        
+        try
+        {
+            while (!handler.isReady())
+                Thread.sleep(REQUEST_POLL_INTERVAL);
+        }
+        catch (InterruptedException e)
+        {
+            System.err.println("BinClient.request interrupted in poll loop.");
+            throw new IOException(e);
+        }
+        
+        if (handler.isError())
+        {
+            throw new IOException("BinClient: connection error to BinServer.");
+        }
+        else
+        {
+            String value = handler.getValue();
+            if (value == null)
+                throw new NoFreeNodesException(
+                        "Bin server responded, no free nodes.");
             else
-            {
-                String value = handler.getValue();
-                if (value == null)
-                    throw new NoFreeNodesException("Bin server responded, no free nodes.");
-                else
-                    return value;
-            }
+                System.err.println("Got node " + value);
+            return value;
         }
     }
     
     public static void free() throws IOException
     {
+        FreeRequestReplyHandler handler = new FreeRequestReplyHandler();
         synchronized(conn)
         {
-            FreeRequestReplyHandler handler = new FreeRequestReplyHandler();
+            
             conn.sendReplyable(new FreeRequest(conn.getUniqueReplyCode()), 
                     handler, FREE_REQUEST_TIMEOUT);
-
-            try
-            {
-                while (!handler.isReady())
-                    Thread.sleep(REQUEST_POLL_INTERVAL);
-            }
-            catch (InterruptedException e)
-            {
-                System.err.println("BinClient.free interrupted in poll loop.");
-                throw new IOException(e);
-            }
-            
-            if (handler.isError() || !handler.isConfirmed())
-            {
-                throw new IOException("BinClient: BinServer connection error.");
-            }
+            System.err.println("Sent free request.");
         }
+        
+        try
+        {
+            while (!handler.isReady())
+                Thread.sleep(REQUEST_POLL_INTERVAL);
+        }
+        catch (InterruptedException e)
+        {
+            System.err.println("BinClient.free interrupted in poll loop.");
+            throw new IOException(e);
+        }
+        
+        if (handler.isError() || !handler.isConfirmed())
+        {
+            throw new IOException("BinClient: BinServer connection error.");
+        }
+
+        System.err.println("Got free confirmation");
     }
     
     private static class FreeRequestReplyHandler implements IReplyHandler
@@ -134,17 +147,17 @@ public class BinClient
             this.error = false;
         }
         
-        public boolean isReady()
+        public synchronized boolean isReady()
         {
             return this.ready;
         }
         
-        public boolean isConfirmed()
+        public synchronized boolean isConfirmed()
         {
             return this.confirmed;
         }
         
-        public boolean isError()
+        public synchronized boolean isError()
         {
             return this.error;
         }

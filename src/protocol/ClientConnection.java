@@ -59,13 +59,14 @@ public class ClientConnection
 		// Push serialization headers for writer.
 		// Reader will be lazy-initialized on first read.
 		byte[] data = this.writer.getSerializationHeader();
-		this.dos.writeInt(data.length);
+		int len = data.length;
+		this.dos.writeInt(len);
 		this.dos.write(data);
 		
 		this.replyables = new HashMap<Long, ReplyableRecord>();
 		this.replyCodeCounter = 0;
 		
-		this.timer = new Timer();
+		this.timer = new Timer(true);
     }
     
     public synchronized boolean isOpen()
@@ -121,7 +122,8 @@ public class ClientConnection
         try
         {
         	byte[] data = writer.getSerializedData(sendable);
-        	dos.writeInt(data.length);
+        	int len = data.length;
+        	dos.writeInt(len);
             dos.write(data);
         }
         catch (IOException e)
@@ -140,10 +142,14 @@ public class ClientConnection
      	if (this.replyables.containsKey(replyable.getReplyCode()))
      		throw new InvalidParameterException("Cannot have duplicate reply code.");
      	
+     	if (delayMilliseconds <= 0)
+     	   throw new InvalidParameterException("delayMilliseconds must be positive.");
+     	
      	try
      	{
      		byte[] data = writer.getSerializedData(replyable);
-        	dos.writeInt(data.length);
+     		int len = data.length;
+        	dos.writeInt(len);
             dos.write(data);
      	}
      	catch (IOException e)
@@ -173,11 +179,6 @@ public class ClientConnection
         
         this.replyables.put(replyable.getReplyCode(), new ReplyableRecord(replyHandler, timeoutCallback));
         this.timer.schedule(timeoutCallback, delayMilliseconds);
-        
-        if (delayMilliseconds > 0)
-        	timer.schedule(timeoutCallback, delayMilliseconds);
-        else
-        	throw new InvalidParameterException("delayMilliseconds must be positive.");
     }
     
     private void readPacket() throws IOException
