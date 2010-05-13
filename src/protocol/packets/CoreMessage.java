@@ -1,5 +1,7 @@
 package protocol.packets;
 
+import java.util.Calendar;
+
 import protocol.ISendable;
 import protocol.PacketType;
 import protocol.data.ClientID;
@@ -25,6 +27,17 @@ public class CoreMessage implements ISendable {
 	public final long replycode;
 	public final String message;
 
+	public CoreMessage(SendMessage msg)
+	{
+	    this.messageID = msg.getMessageID();
+	    this.sender = msg.getClientID();
+	    this.alias = msg.getAlias();
+	    this.room = msg.getRoom();
+	    this.timestamp = Calendar.getInstance().getTimeInMillis();
+	    this.replycode = msg.getReplyCode();
+	    this.message = msg.getMessage();
+	}
+	
 	public CoreMessage(String room, String message, MessageID messageID,
 			ClientID sender, String alias, long timestamp, long replycode) {
 

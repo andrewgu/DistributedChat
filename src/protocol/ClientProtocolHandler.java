@@ -1,6 +1,8 @@
 
 package protocol;
 
+import java.util.Calendar;
+
 import protocol.packets.ClientConnect;
 import protocol.packets.ClientReconnect;
 import protocol.packets.ConnectAck;
@@ -89,7 +91,7 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession> {
 	private void ackConnect(ClientSession sess, long replyCode) {
 		// prepare the packet
 		ConnectAck cak = new ConnectAck(statc.currentUpdate(),
-				System.currentTimeMillis(), replyCode);
+		        Calendar.getInstance().getTimeInMillis(), replyCode);
 		
 		// deliver
 		sess.deliverToClient(cak);
@@ -103,11 +105,7 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession> {
 	 */
 	private void handleSendMessage(ClientSession sess, SendMessage snd) {
 		// translate sent message into CoreMessage, adding timestamp
-		CoreMessage cm = 
-			new CoreMessage(snd.getRoom(), snd.getMessage(),
-					snd.getMessageID(), snd.getClientID(),
-					snd.getAlias(), System.currentTimeMillis(),
-					snd.getReplyCode());
+		CoreMessage cm = new CoreMessage(snd);
 
 		// deliver message to clients on this machine
 		this.deliverMessageLocally(cm);
