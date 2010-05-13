@@ -14,7 +14,7 @@ import protocol.ReplyPacket;
 
 public class BinServerHandler implements IServerHandler<BinSession>
 {
-    public static int ALLOCATE_REQUEST_REPLY_TIMEOUT = 30000;
+    public static int ALLOCATE_REQUEST_REPLY_TIMEOUT = 300000;
     
     private Queue<BinSession> freeNodeQueue;
     private Map<String, BinSession> nodes;
@@ -30,7 +30,7 @@ public class BinServerHandler implements IServerHandler<BinSession>
     {
         BinSession session = connection.getAttachment();
         session.isConnected = false;
-        nodes.remove(session.nodeAddress);
+        nodes.remove(session.identifier);
     }
 
     @Override
@@ -38,7 +38,7 @@ public class BinServerHandler implements IServerHandler<BinSession>
     {
         BinSession session = new BinSession(connection);
         connection.setAttachment(session);
-        nodes.put(session.nodeAddress, session);
+        nodes.put(session.identifier, session);
     }
 
     @Override
@@ -49,8 +49,11 @@ public class BinServerHandler implements IServerHandler<BinSession>
         {
         case BIN_NODE_REQUEST:
             this.nodeRequest((NodeRequest)packet, connection);
+            break;
         case BIN_FREE_REQUEST:
+            System.err.println("Got free request.");
             this.freeRequest((FreeRequest)packet, connection);
+            break;
         default:
             System.err.println(packet.getPacketType());
             throw new RuntimeException("Error: Invalid packet type in BinServerHandler.onPacket.");
@@ -64,6 +67,7 @@ public class BinServerHandler implements IServerHandler<BinSession>
         session.isActive = false;
         this.freeNodeQueue.add(session);
         connection.sendPacket(new FreeRequestReply(packet, true));
+        System.err.println("Node freed.");
     }
 
     private void nodeRequest(NodeRequest packet,
@@ -109,7 +113,6 @@ public class BinServerHandler implements IServerHandler<BinSession>
             }
             catch (IOException e)
             {
-                // TODO Auto-generated catch block
                 e.printStackTrace();
             }
         }
@@ -124,10 +127,10 @@ public class BinServerHandler implements IServerHandler<BinSession>
                 try
                 {
                     connection.sendPacket(new NodeRequestReply(this.packet, this.popped.nodeAddress));
+                    System.err.println("Node request fulfilled.");
                 }
                 catch (IOException e)
                 {
-                    // TODO Auto-generated catch block
                     e.printStackTrace();
                 }
             }
@@ -148,14 +151,13 @@ public class BinServerHandler implements IServerHandler<BinSession>
         @Override
         public void onTimeout(IServerConnection<BinSession> caller)
         {
-            caller.close();
+            //caller.close();
             try
             {
                 connection.sendPacket(new NodeRequestReply(packet, null));
             }
             catch (IOException e)
             {
-                // TODO Auto-generated catch block
                 e.printStackTrace();
             }
         }

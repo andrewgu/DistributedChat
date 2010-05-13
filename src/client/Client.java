@@ -204,6 +204,8 @@ public class Client
 		try
 		{
 			this.authConnection = new ClientConnection(this.authHost, this.authPort, new AuthenticationHandler(this));
+			this.authConnection.startReadLoop();
+			
 			this.authConnection.sendReplyable(new FindRoom(this.room, this.authConnection.getUniqueReplyCode()), 
 					new AuthReplyHandler(this), this.connectTimeout);
 		}
@@ -227,6 +229,8 @@ public class Client
 			{
 				this.chatConnection = new ClientConnection(listing.getAddress().getHostAddress(), listing.getAddress().getPort(), 
 						new ConnectHandler(this));
+				this.chatConnection.startReadLoop();
+				
 				this.chatConnection.sendReplyable(new ClientConnect(this.clientID, this.room, this.chatConnection.getUniqueReplyCode()), 
 						new ConnectReplyHandler(this, triesLeft-1), this.connectTimeout);
 			}
@@ -420,6 +424,8 @@ public class Client
 			try
 			{
 				this.chatConnection = new ClientConnection(listing.getAddress().getHostAddress(), listing.getAddress().getPort(), new ConnectHandler(this));
+				this.chatConnection.startReadLoop();
+				
 				this.chatConnection.sendReplyable(new ClientReconnect(this.clientID, this.room, this.lastAcked, this.lastReceived, this.chatConnection.getUniqueReplyCode()), 
 						new ReconnectReplyHandler(this, triesLeft - 1), this.connectTimeout);
 			}
