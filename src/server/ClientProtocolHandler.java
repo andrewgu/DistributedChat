@@ -17,8 +17,7 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession>
 	@Override
 	public void onClose(IServerConnection<ClientSession> connection) 
 	{
-	    if (connection.getAttachment().getRoom() != null)
-	        RingServer.RingHandler().removeClient(connection.getAttachment());
+	    RingServer.RingHandler().removeClient(connection.getAttachment());
 	}
 
 	@Override
