@@ -23,9 +23,11 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession>
 	@Override
 	public void onConnect(IServerConnection<ClientSession> connection) 
 	{	
-	    // TODO : Load balancing decisions.
-        // E.G. whether to reject clients
-		connection.setAttachment(new ClientSession(connection));
+	    // Reject above a certain limit.
+	    if (RingServer.Stats().getLoad() >= 1.0f)
+	        connection.close();
+	    else
+	        connection.setAttachment(new ClientSession(connection));
 	}
 
 	@Override
@@ -34,7 +36,6 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession>
 
 		ClientSession sess = connection.getAttachment();
 
-		// TODO what about FIND_ROOM? how does this get handled
 		switch(packet.getPacketType()) {
 		case CLIENT_CONNECT:
 			handleConnect(sess, (ClientConnect) packet);
