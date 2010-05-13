@@ -3,10 +3,8 @@ package server;
 import java.io.IOException;
 import java.net.UnknownHostException;
 
-import binserver.BinClient;
-
 import protocol.ProtocolServer;
-import protocol.packets.ServerUpdate;
+import binserver.BinClient;
 
 /*
  * Singleton class that contains globals for the node. This makes a central point
@@ -26,14 +24,21 @@ public class RingServer
     private static ProtocolServer<ClientSession> clientService = null;
     private static ProtocolServer<AuthSession> authService = null;
     private static ProtocolServer<RingProtocolSession> ringService = null;
+    
+    private static ClientProtocolHandler clientHandler = null;
+    private static RingProtocolHandler ringHandler = null;
+    private static AuthProtocolHandler authHandler = null;
+    
     private static StatCenter statCenter = null;
     
     public static void startBase() throws UnknownHostException, IOException
     {
+        clientHandler = new ClientProtocolHandler();
         clientService = new ProtocolServer<ClientSession>(CLIENT_PORT, CLIENT_THREADS, 
-                new ClientProtocolHandler());
+                clientHandler);
+        ringHandler = new RingProtocolHandler();
         ringService = new ProtocolServer<RingProtocolSession>(RING_PORT, RING_THREADS,
-                new RingProtocolHandler());
+                ringHandler);
         
         statCenter = new StatCenter();
         
@@ -43,31 +48,27 @@ public class RingServer
     
     public static void startHead() throws UnknownHostException, IOException
     {
+        authHandler = new AuthProtocolHandler();
         authService = new ProtocolServer<AuthSession>(AUTH_PORT, AUTH_THREADS,
-                new AuthProtocolHandler());
+                authHandler);
         authService.start();
     }
     
     public static void stop()
     {
-        if (clientService != null)
-        {
-            clientService.stop();
-            clientService = null;
-        }
-        
-        if (ringService != null)
-        {
-            ringService.stop();
-            ringService = null;
-        }
-        
         if (authService != null)
-        {
             authService.stop();
-            authService = null;
-        }
+        if (clientService != null)
+            clientService.stop();
+        if (ringService != null)
+            ringService.stop();
         
+        clientHandler = null;
+        clientService = null;
+        ringHandler = null;
+        ringService = null;
+        authHandler = null;
+        authService = null;
         statCenter = null;
         
         try
@@ -80,6 +81,11 @@ public class RingServer
             e.printStackTrace();
             System.exit(1);
         }
+    }
+    
+    public static void panic()
+    {
+        System.exit(2);
     }
     
     public static ProtocolServer<ClientSession> ClientService()
@@ -101,6 +107,13 @@ public class RingServer
         if (ringService == null)
             throw new NullPointerException("BaseService not initialized.");
         return ringService;
+    }
+    
+    public static RingProtocolHandler RingHandler()
+    {
+        if (ringHandler == null)
+            throw new NullPointerException("BaseService not initialized.");
+        return ringHandler;
     }
     
     public static StatCenter Stats()

@@ -16,6 +16,8 @@ public class ClientSession {
 	
 	public ClientSession(IServerConnection<ClientSession> connection) {
 		this.conn = connection;
+		this.id = null;
+		this.room = null;
 	}
 
 	public void sessInit(ClientID client, String room) {

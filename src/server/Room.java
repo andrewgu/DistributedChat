@@ -27,10 +27,11 @@ public class Room
     }
     
     // Adds and culls messages.
-    public synchronized void addMessage(CoreMessage msg)
+    public synchronized boolean addMessage(CoreMessage msg)
     {
         this.messages.addMessage(msg);
-        broadcastMessage(msg);
+        // return whether this was the originating node, i.e. if the original sender is here. 
+        return broadcastMessage(msg);
     }
 
     public synchronized List<CoreMessage> getHistory()
@@ -63,12 +64,16 @@ public class Room
         return clients.size();
     }
     
-    private void broadcastMessage(CoreMessage msg)
+    private boolean broadcastMessage(CoreMessage msg)
     {
+        boolean clientFound = false;
         MessageData md = new MessageData(RingServer.Stats().getServerUpdate(name), msg);
         for (ClientSession s : this.clients.values())
         {
+            if (s.getClientID().equals(msg.messageID.getClientID()))
+                clientFound = true;
             s.deliverToClient(md);
         }
+        return clientFound;
     }
 }

@@ -149,6 +149,22 @@ public class RingStat implements ISendable {
     {
         return this.updateCounter;
     }
+
+    public ServerStats getOldestNode()
+    {
+        if (this.globalStats.length == 0)
+            return null;
+        
+        ServerStats oldest = this.globalStats[0];
+        for (int i = 1; i < this.globalStats.length; i++)
+        {
+            if (this.globalStats[i].lastUpdate < oldest.lastUpdate)
+            {
+                oldest = this.globalStats[i];
+            }
+        }
+        return oldest;
+    }
     
 //  /**
 //  * Take counts for rooms on this server and add them to the counts

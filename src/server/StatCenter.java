@@ -108,6 +108,16 @@ public class StatCenter {
     {
         return this.latestRingStat;
     }
+    
+//    /**
+//    * Get the successor for this node.
+//    * 
+//    * @return
+//    */
+//    public synchronized ServerAddress getSuccessor() 
+//    {
+//        return this.successor;
+//    }
 
 //    /**
 //	 * Get the most recent ServerUpdate given intraring statistics.
@@ -177,14 +187,7 @@ public class StatCenter {
 //		}
 //	}
 //
-//	/**
-//	 * Get the successor for this node.
-//	 * 
-//	 * @return
-//	 */
-//	public ServerStats getSuccessor() {
-//		return getSuccessor(this.serverID);
-//	}
+//	
 //
 //	/**
 //	 * Remove the successor for this node, provided it is possible

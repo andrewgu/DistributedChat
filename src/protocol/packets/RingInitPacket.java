@@ -14,6 +14,7 @@ public class RingInitPacket implements ISendable
     private int port;
     private String host;
     
+    
     public RingInitPacket(int ring, int server, int port, String host)
     {
         this.ring = ring;
