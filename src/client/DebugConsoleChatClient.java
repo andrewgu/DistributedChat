@@ -11,7 +11,7 @@ import protocol.packets.MessageData;
 import protocol.packets.SendMessage;
 import protocol.packets.ServerUpdate;
 
-public class ConsoleChatClient implements IChatClientHandler
+public class DebugConsoleChatClient implements IChatClientHandler
 {
     // Try to authenticate to arg[0] at port arg[1]
     // to room arg[2] as alias arg[3].
@@ -28,12 +28,12 @@ public class ConsoleChatClient implements IChatClientHandler
         String room = args[2];
         String alias = args[3];
         
-        new ConsoleChatClient(args[0], port, room, alias).run();
+        new DebugConsoleChatClient(args[0], port, room, alias).run();
     }
     
     private Client client;
     
-    public ConsoleChatClient(String host, int port, String room, String alias) throws UnknownHostException
+    public DebugConsoleChatClient(String host, int port, String room, String alias) throws UnknownHostException
     {
         client = new Client(host, port, room, alias, this);
     }    
