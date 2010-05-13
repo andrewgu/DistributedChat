@@ -1,5 +1,6 @@
 package protocol;
 
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedList;
@@ -55,7 +56,7 @@ public class TimeBoundedMessageCache implements Runnable {
 	 * @return the timestamp of that message
 	 */
 	public long discardHorizon() {
-		return System.currentTimeMillis() - this.retentionPeriod;
+		return Calendar.getInstance().getTimeInMillis() - this.retentionPeriod;
 	}
 
 	/**

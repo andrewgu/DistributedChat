@@ -79,9 +79,7 @@ public class TestAuthServer
                 if (p.getRoom().equals(ROOM))
                 {
                     connection.sendPacket(new RoomFound(getNewClientID(p.getRoom()), 
-                            new ServerUpdate(ROOM, getServerID(), new ServerPriorityListing[] {
-                                new ServerPriorityListing(0, TestChatServer.getServerID(), new ServerAddress("localhost", TestChatServer.PORT))
-                            }), 
+                            TestChatServer.getServerUpdate(), 
                             p.getReplyCode()));
                     println("Sent ROOM_FOUND packet.");
                 }

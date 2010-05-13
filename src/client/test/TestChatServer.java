@@ -2,6 +2,7 @@ package client.test;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.Calendar;
 import java.util.TreeMap;
 
 import protocol.ISendable;
@@ -9,7 +10,17 @@ import protocol.IServerConnection;
 import protocol.IServerHandler;
 import protocol.ProtocolServer;
 import protocol.data.ClientID;
+import protocol.data.ServerAddress;
 import protocol.data.ServerID;
+import protocol.data.ServerPriorityListing;
+import protocol.packets.ClientConnect;
+import protocol.packets.ClientReconnect;
+import protocol.packets.ConnectAck;
+import protocol.packets.CoreMessage;
+import protocol.packets.MessageData;
+import protocol.packets.SendAck;
+import protocol.packets.SendMessage;
+import protocol.packets.ServerUpdate;
 
 public class TestChatServer
 {
@@ -44,11 +55,23 @@ public class TestChatServer
     {
         private IServerConnection<TestChatSession> connection;
         private ClientID clientId;
+        private int connectAttempts;
+        private int reconnectAttempts;
+        private int sendAttempts;
 
         public TestChatSession(IServerConnection<TestChatSession> connection)
         {
             this.connection = connection;
             this.clientId = null;
+            
+            this.connectAttempts = 0;
+            this.reconnectAttempts = 0;
+            this.sendAttempts = 0;
+        }
+        
+        public IServerConnection<TestChatSession> getConnection()
+        {
+            return this.connection;
         }
         
         public void setClientID(ClientID id)
@@ -59,6 +82,36 @@ public class TestChatServer
         public ClientID getClientID()
         {
             return this.clientId;
+        }
+
+        public int getConnectAttempts()
+        {
+            return connectAttempts;
+        }
+
+        public void setConnectAttempts(int connectAttempts)
+        {
+            this.connectAttempts = connectAttempts;
+        }
+
+        public int getReconnectAttempts()
+        {
+            return reconnectAttempts;
+        }
+
+        public void setReconnectAttempts(int reconnectAttempts)
+        {
+            this.reconnectAttempts = reconnectAttempts;
+        }
+
+        public int getSendAttempts()
+        {
+            return sendAttempts;
+        }
+
+        public void setSendAttempts(int sendAttempts)
+        {
+            this.sendAttempts = sendAttempts;
         }
     }
     
@@ -92,13 +145,13 @@ public class TestChatServer
             switch (packet.getPacketType())
             {
             case CLIENT_CONNECT:
-                clientConnect(connection, packet);
+                clientConnect(connection, (ClientConnect)packet);
                 break;
             case CLIENT_RECONNECT:
-                clientReconnect(connection, packet);
+                clientReconnect(connection, (ClientReconnect)packet);
                 break;
             case SEND_MESSAGE:
-                sendMessage(connection, packet);
+                sendMessage(connection, (SendMessage)packet);
                 break;
             default:
                 println("Unrecognized packet.");
@@ -106,24 +159,122 @@ public class TestChatServer
         }
 
         private void sendMessage(IServerConnection<TestChatSession> connection,
-                ISendable packet)
+                SendMessage packet) throws IOException
         {
-            // TODO Auto-generated method stub
+            println("SEND request");
+            ClientID id = packet.getClientID();
+            TestChatSession session;
             
+            if (clients.containsKey(id))
+            {
+                session = clients.get(id);
+                connection.setAttachment(session);
+            }
+            else
+            {
+                session = connection.getAttachment();
+                session.setClientID(id);
+                clients.put(id, session);
+            }
+            
+            if (session.getSendAttempts() < FORCE_SEND_RETRY)
+            {
+                println("Forced ignore send.");
+            }
+            else
+            {
+                println("Executing send.");
+                // reset
+                session.setSendAttempts(0);
+                
+                for (TestChatSession s : clients.values())
+                {
+                    s.getConnection().sendPacket(new MessageData(getServerUpdate(), 
+                            new CoreMessage(ROOM, packet.getMessage(), packet.getMessageID(), 
+                                    packet.getClientID(), packet.getAlias(), getTimestamp(), packet.getReplyCode())));
+                }
+                
+                connection.sendPacket( new SendAck(
+                        getServerUpdate(), getTimestamp(), packet.getMessageID(), packet.getReplyCode()));
+            }
         }
 
         private void clientReconnect(
-                IServerConnection<TestChatSession> connection, ISendable packet)
+                IServerConnection<TestChatSession> connection, ClientReconnect packet) throws IOException
         {
-            // TODO Auto-generated method stub
+            println("Client RECONNECT request...");
+            ClientID id = packet.getClient();
+            TestChatSession session;
             
+            if (clients.containsKey(id))
+            {
+                session = clients.get(id);
+                connection.setAttachment(session);
+            }
+            else
+            {
+                session = connection.getAttachment();
+                session.setClientID(id);
+                clients.put(id, session);
+            }
+            
+            if (session.getReconnectAttempts() < FORCE_RECONNECT_RETRY)
+            {
+                println("Force close.");
+                connection.close();
+            }
+            else
+            {
+                println("Accepted connect request.");
+                // reset
+                session.setConnectAttempts(0);
+                connection.sendPacket(new ConnectAck(getServerUpdate(), getTimestamp(), packet.getReplyCode()));
+            }
         }
 
         private void clientConnect(
-                IServerConnection<TestChatSession> connection, ISendable packet)
+                IServerConnection<TestChatSession> connection, ClientConnect packet) throws IOException
         {
-            // TODO `Auto-generated method stub
+            println("Client connect request...");
+            ClientID id = packet.getClient();
+            TestChatSession session;
             
+            if (clients.containsKey(id))
+            {
+                session = clients.get(id);
+                connection.setAttachment(session);
+            }
+            else
+            {
+                session = connection.getAttachment();
+                session.setClientID(id);
+                clients.put(id, session);
+            }
+            
+            if (session.getConnectAttempts() < FORCE_CONNECT_RETRY)
+            {
+                println("Force close.");
+                connection.close();
+            }
+            else
+            {
+                println("Accepted connect request.");
+                // reset
+                session.setConnectAttempts(0);
+                connection.sendPacket(new ConnectAck(getServerUpdate(), getTimestamp(), packet.getReplyCode()));
+            }
         }
+    }
+    
+    public static long getTimestamp()
+    {
+        return Calendar.getInstance().getTimeInMillis();
+    }
+    
+    public static ServerUpdate getServerUpdate()
+    {
+        return new ServerUpdate(ROOM, getServerID(), 
+                new ServerPriorityListing[] { new ServerPriorityListing(0, TestChatServer.getServerID(), 
+                        new ServerAddress("localhost", TestChatServer.PORT))});
     }
 }
