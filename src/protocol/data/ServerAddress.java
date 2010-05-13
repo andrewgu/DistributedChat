@@ -17,6 +17,12 @@ public class ServerAddress implements Serializable
 		this.host = new String(host);
 		this.port = port;
 	}
+	
+	public ServerAddress(ServerAddress addr)
+	{
+	    this.host = new String(addr.getHost());
+	    this.port = addr.getPort();
+	}
 
 	public String getHost()
 	{
