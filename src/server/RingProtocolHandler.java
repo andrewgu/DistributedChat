@@ -17,8 +17,10 @@ import protocol.IServerHandler;
 import protocol.data.ServerID;
 import protocol.data.ServerStats;
 import protocol.packets.CoreMessage;
+import protocol.packets.MessageData;
 import protocol.packets.RingInitPacket;
 import protocol.packets.RingStat;
+import protocol.packets.ServerUpdate;
 
 public class RingProtocolHandler implements IServerHandler<RingProtocolSession> 
 {	
@@ -366,5 +368,19 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
                 return false;
         }
         return true;
+    }
+
+    public void replayHistory(ClientSession sess, String room, long lastReceived)
+    {
+        Room r = this.rooms.get(room);
+        if (r != null)
+        {
+            ServerUpdate upd = RingServer.Stats().getServerUpdate(room);
+            for (CoreMessage msg : r.getHistory())
+            {
+                if (msg.timestamp > lastReceived)
+                    sess.deliverToClient(new MessageData(upd, msg));
+            }
+        }
     }
 }

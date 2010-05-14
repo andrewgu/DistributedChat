@@ -1,104 +1,69 @@
 package server;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import protocol.ISendable;
 import protocol.IServerConnection;
 import protocol.IServerHandler;
+import protocol.data.ClientID;
 import protocol.packets.FindRoom;
-import protocol.packets.RingDeath;
 import protocol.packets.RoomFound;
-import protocol.packets.ServerUpdate;
-
-
-/**
- * Handles Auth server duties. Handles packets from clients and Servers.
- * 
- * @author dew47
- */
 
 public class AuthProtocolHandler implements IServerHandler<AuthSession> {
 
-	//AuthDB auth;
+    private Map<String, Integer> clientInts = new HashMap<String, Integer>();
+   
+    @Override
+    public void onClose(IServerConnection<AuthSession> connection) {
+        // stateless
+    }
 
-	@Override
-	public void onClose(IServerConnection<AuthSession> connection) {
-		// stateless protocol
-	}
+    @Override
+    public void onConnect(IServerConnection<AuthSession> connection) {
+        // stateless   
+    }
 
-	@Override
-	public void onConnect(IServerConnection<AuthSession> connection) {
+    @Override
+    public void onPacket(IServerConnection<AuthSession> connection,
+            ISendable packet) throws IOException {
 
-		// stateless protocol
-		connection.setAttachment(null);
-	}
+        switch(packet.getPacketType()) {
+        case FIND_ROOM:
+            handleFindRoom(connection, (FindRoom) packet);
+            break;
+           
+        default:
+            connection.close();
+        }
+    }
 
-	@Override
-	public void onPacket(IServerConnection<AuthSession> connection,
-			ISendable packet) {
+    private void handleFindRoom(IServerConnection<AuthSession> connection,
+            FindRoom fr)
+    {
+        Integer i;
+        synchronized (this.clientInts)
+        {
+            i = clientInts.get(fr.getRoom());
+            if (i == null)
+                i = 0;
+            else
+                i++;
 
-		switch(packet.getPacketType()) {
+            this.clientInts.put(fr.getRoom(), i);
+        }
+        ClientID client = new ClientID(fr.getRoom(), i);
+        try
+        {
+            connection.sendPacket(new RoomFound(client, RingServer.Stats().getServerUpdate(fr.getRoom()),
+                    fr.getReplyCode()));
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+            connection.close();
+        }
 
-		case FIND_ROOM:
-			handleFindRoom(connection, (FindRoom) packet);
-			break;
-
-		case RING_AUTH_UPDATE:
-			handleRingUpdate(connection, (RingAuthUpdate) packet);
-			break;
-
-		case RING_DEATH:
-			handleRingDeath(connection, (RingDeath) packet);
-			break;
-
-		default:
-			// we just drop these
-			connection.close();
-			break;
-		}
-	}
-
-	private void handleFindRoom(IServerConnection<AuthSession> connection,
-			FindRoom fr) {
-		ServerUpdate sup;
-		//Integer ring = auth.getRing(fr.getRoom());
-		if(ring == null) {
-			sup = null;
-		} else {
-		//	sup = auth.getUpdate(ring);
-		}
-
-		RoomFound response;
-		
-		/* Either we've found the ring that hosts this room, or we
-		 * will assign the chat to a ring.
-		 */
-		if(sup == null) {
-			// NO ROOM FOUND
-			sup = auth.mostFitRing();
-		}
-		
-		response = new RoomFound(
-				auth.newClientID(fr.getRoom()), sup, fr.getReplyCode());
-
-		try {
-			connection.sendPacket(response);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-
-		// client is done with this server
-		connection.close();
-	}
-
-	private void handleRingUpdate(IServerConnection<AuthSession> connection, RingAuthUpdate up) {
-		// pretty simple. keep the connection open.
-		auth.processUpdate(up);
-	}
-
-	private void handleRingDeath(IServerConnection<AuthSession> connection, RingDeath death) {
-		// we stop talking after this
-		auth.processRingDeath(death.serverID.getRing());
-		connection.close();
-	}
+    }
 }

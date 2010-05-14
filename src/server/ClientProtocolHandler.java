@@ -72,6 +72,8 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession>
 		ackConnect(sess, crn.getReplyCode());
 		
 		RingServer.RingHandler().addClient(sess);
+		
+		RingServer.RingHandler().replayHistory(sess, crn.getRoom(), crn.getLastReceived());
 	}
 	
 	/**
