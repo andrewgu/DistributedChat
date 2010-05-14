@@ -71,29 +71,6 @@ public class RingStat implements ISendable {
         return globalRoomCounts;
     }
     
-//    public ServerID headAddNode(int ringNumber, float initialLoad, String host, int port)
-//    {
-//        // head node is always the last node in the list.
-//        // Always pick one less than the front of the array.
-//        if (globalStats.length == 0)
-//            return null;
-//        
-//        // Increment the update counter for each server touched.
-//        updateCounter++;
-//        
-//        // Head node's server ID is Integer.MAX_VALUE.
-//        int newNumber = globalStats[0].id.getServerNumber()-1;
-//        
-//        ServerID newID = new ServerID(ringNumber, newNumber);
-//        ServerStats[] newList = new ServerStats[globalStats.length+1];
-//        newList[0] = new ServerStats(newID, new ServerAddress(host, port), 0.0f, updateCounter);
-//        for (int i = 0; i < globalStats.length; i++)
-//            newList[i+1] = globalStats[i];
-//        this.globalStats = newList;
-//        
-//        return newID;
-//    }
-
     public void updateLoad(ServerID serverID, float load)
     {
         // Increment the update counter for each server touched.
@@ -149,6 +126,19 @@ public class RingStat implements ISendable {
                 break;
             }
         }
+    }
+    
+    public void cullDeadNodes(long previousCount)
+    {
+        ArrayList<ServerStats> list = new ArrayList<ServerStats>();
+        for (int i = 0; i < globalStats.length; i++)
+        {
+            if (globalStats[i].lastUpdate >= previousCount)
+                list.add(globalStats[i]);
+        }
+        
+        globalStats = new ServerStats[list.size()];
+        list.toArray(globalStats);
     }
     
     public void cullEmptyRooms()

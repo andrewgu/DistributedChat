@@ -27,18 +27,19 @@ public class BinClient
      * @param args The array of command line arguments for the nodes.
      * Arguments are:
      * [0] = address of bin server
-     * [1] = defined as "head" if head node
+     * [1] = address of local server
+     * [2] = defined as "head" if head node
      * @throws IOException 
      */
     public static void main(String[] args) throws IOException
     {
-        boolean isHeadNode = args.length > 1 && args[1].equals("head");
-        initBinClient(args[0]);
+        boolean isHeadNode = args.length > 2 && args[2].equals("head");
+        initBinClient(args[0], args[1]);
         
         if (isHeadNode)
         {
             RingServer.startBase();
-            RingServer.initHead(args[0]);    
+            RingServer.initHead(args[1]);    
         }
         else
         {
@@ -122,11 +123,11 @@ public class BinClient
         RingServer.startBase();
     }
     
-    private static void initBinClient(String binServerAddress) throws IOException
+    private static void initBinClient(String binServerAddress, String localAddress) throws IOException
     {   
         binServerAddr = InetAddress.getByName(binServerAddress);
         conn = new ClientConnection(binServerAddr, BinServer.BIN_SERVER_PORT, new BinClientHandler());
-        conn.sendPacket(new BinClientAddress(binServerAddress));
+        conn.sendPacket(new BinClientAddress(localAddress));
         //readLoop = conn.startReadLoop();
         conn.startReadLoop();
     }

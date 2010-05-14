@@ -52,10 +52,10 @@ public class RingServer
         System.out.println("Started base services.");
     }
     
-    public static void initHead(String serverName) throws UnknownHostException, IOException
+    public static void initHead(String localName) throws UnknownHostException, IOException
     {
         statCenter.initNode(new ServerID(DEFAULT_RING, Integer.MAX_VALUE), 
-                new ServerAddress(serverName, RING_PORT));
+                new ServerAddress(localName, RING_PORT));
         
         startHead();
         

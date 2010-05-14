@@ -223,6 +223,7 @@ public class Client
 		this.state = State.CONNECTING;
 		
 		ServerPriorityListing listing = getNextListing();
+		System.err.println("Attempting to connect to " + listing.getAddress().getHost());
 		if (triesLeft > 0 && listing != null )
 		{	
 			try
@@ -318,7 +319,7 @@ public class Client
 	
 	private void connectClosedUnknownState()
 	{
-		System.err.println("Connection was dropped in an unsupported state: not CONNECTING, CONNECTED, or DISCONNECTED:");
+	    System.err.println("Connection was dropped in an unsupported state: not CONNECTING, CONNECTED, or DISCONNECTED:");
 		System.err.println(this.state);
 		this.disconnect();
 	}
@@ -420,6 +421,11 @@ public class Client
 		this.state = State.RECONNECTING;
 		
 		ServerPriorityListing listing = getNextListing();
+		if (listing != null)
+		    System.err.println("Attempting to reconnect to " + listing.getAddress().getHost());
+		else
+		    System.err.println("Ran out of alternate servers!");
+		
 		if (triesLeft > 0 && listing != null )
 		{
 			try

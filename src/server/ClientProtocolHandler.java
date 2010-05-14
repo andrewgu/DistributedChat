@@ -74,9 +74,11 @@ public class ClientProtocolHandler implements IServerHandler<ClientSession>
 	    System.out.println("Reconnect request.");
 		// init session and ack
 		sess.onReconnect(crn);
+		System.out.println("Adding client.");
 		RingServer.RingHandler().addClient(sess);
-		RingServer.RingHandler().replayHistory(sess, crn.getRoom(), crn.getLastReceived());
 		ackConnect(sess, crn.getReplyCode());
+		System.out.println("Replaying chat history.");
+		RingServer.RingHandler().replayHistory(sess, crn.getRoom(), crn.getLastReceived());
 	}
 	
 	/**

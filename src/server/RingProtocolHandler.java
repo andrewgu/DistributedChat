@@ -2,12 +2,10 @@ package server;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
-
-import binserver.BinClient;
-import binserver.NoFreeNodesException;
 
 import protocol.ClientConnection;
 import protocol.IClientHandler;
@@ -21,16 +19,21 @@ import protocol.packets.MessageData;
 import protocol.packets.RingInitPacket;
 import protocol.packets.RingStat;
 import protocol.packets.ServerUpdate;
+import binserver.BinClient;
+import binserver.NoFreeNodesException;
 
 public class RingProtocolHandler implements IServerHandler<RingProtocolSession> 
 {	
-    public static final int MAX_CLIENT_COUNT = 100;
-    public static final float THRESHOLD_CLIENT_LOAD = 0.7f;
-    public static final float RELIEF_LOAD = 0.5f;
-    public static final float IDLE_CLIENT_LOAD = 0.2f;
+    public static final int MAX_CLIENT_COUNT = 4;
+    public static final float THRESHOLD_CLIENT_LOAD = 0.5f;
+    public static final float RELIEF_LOAD = 0.3f;
+    public static final float IDLE_CLIENT_LOAD = 0.1f;
     // 5 minutes
     public static final long ROOM_RETENTION_PERIOD = 300000;
-    public static final long HEADNODE_RINGSTAT_FORWARD_DELAY = 1000;
+    public static final long HEADNODE_RINGSTAT_FORWARD_DELAY = 2000;
+    
+    // Nodes stick around for at least 15 mintues before they let themselves die.
+    public static final long MINIMUM_NODE_LONGEVITY = 15000;
     
 	private ClientConnection outLink;
     
@@ -38,6 +41,7 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
     private Map<String,Room> rooms;
     private LinkedList<ISendable> queuedOutgoing;
     private ArrayList<String> emptyRooms;
+    private long initializationAge;
 	
 	public RingProtocolHandler()
 	{
@@ -45,6 +49,8 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
 	    rooms = new HashMap<String,Room>();
 	    queuedOutgoing = new LinkedList<ISendable>();
 	    emptyRooms = new ArrayList<String>();
+	    
+	    initializationAge = Calendar.getInstance().getTimeInMillis();
 	}
 	
 	public synchronized void addClient(ClientSession client)
@@ -166,8 +172,13 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
             findSuccessor(rs);
         }
         
+        // Clear out the dead entries.
+        rs.cullDeadNodes(RingServer.Stats().getPreviousUpdateCounter());
+        rs.cullEmptyRooms();
+        
         // Update individual room counts on the existing RingStat.
         float load = updateLoads(rs);
+        System.out.print("L" + load + ";");
         // Update server load.
         ServerID self = RingServer.Stats().getServerID();
         rs.updateLoad(self, load);
@@ -176,6 +187,7 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
         RingServer.Stats().updateRingStat(rs);
         
         // Forward the RingStat to the next guy, but only if the connection exists
+        System.out.println("Forwarding Ring Stat.");
         this.forwardPacket(rs);
         
         dynamicLoadBalance(self, load, rs);
@@ -273,6 +285,7 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
 			{
 			    System.out.println(".");
 				this.outLink.sendPacket(pkt);
+				System.out.println(":");
 			} 
 			catch (IOException e) 
 			{
@@ -291,22 +304,23 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
 	
 	private class RingClientHandler implements IClientHandler
 	{   
-	    private RingProtocolHandler parent;
+	    //private RingProtocolHandler parent;
 	    
 	    public RingClientHandler(RingProtocolHandler parent)
 	    {
-	        this.parent = parent;
+	        //this.parent = parent;
 	    }
 	    
         @Override
         public void onConnectionClosed(ClientConnection caller)
         {
-            synchronized(parent)
-            {
+            //synchronized(parent)
+            //{
+                System.out.println("Successor dropped.");
                 // Try to grab the right successor from the last RingStat to pass by.
                 outLink = null;
                 //findSuccessor(RingServer.Stats().getLatestRingStat());
-            }
+            //}
         }
 
         @Override
@@ -347,7 +361,10 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
             System.out.println("Kicking clients to other nodes.");
             kickExcessNodes(load);
         }
-        else if (load <= IDLE_CLIENT_LOAD && hasRelief)
+        else if ( !RingServer.isHeadNode()
+                && load <= IDLE_CLIENT_LOAD && 
+                (Calendar.getInstance().getTimeInMillis() - initializationAge > MINIMUM_NODE_LONGEVITY)
+                && hasRelief)
         {
             // If below IDLE and there is at least one below RELIEF, then kick all clients
             // and shrink the ring.
@@ -358,13 +375,16 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
 
     private void dropNode()
     {
+        for (Room r : this.rooms.values())
+            r.kickAll();
+        
         // Most drastic possible measure, just kicks everyone and everything.
         RingServer.stop();
     }
 
     private void kickExcessNodes(float currentLoad)
     {
-        int kickAmount = (int)((currentLoad - THRESHOLD_CLIENT_LOAD)*MAX_CLIENT_COUNT);
+        int kickAmount = Math.round((currentLoad - THRESHOLD_CLIENT_LOAD)*MAX_CLIENT_COUNT);
         
         outer:
         for (Room r : this.rooms.values())
@@ -386,6 +406,8 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
         // If all nodes are above THRESHOLD, then add a node.
         if (allAboveThreshold(rs))
         {
+            System.out.println("All are above threshold - adding a node.");
+            
             ServerID lowest = rs.getLowestServerID();
             try
             {

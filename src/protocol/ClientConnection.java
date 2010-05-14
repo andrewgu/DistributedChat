@@ -118,17 +118,23 @@ public class ClientConnection
     public synchronized void sendPacket(ISendable sendable) throws IOException
     {
     	if (closed)
+    	{
+    	    //System.out.println("Closed.");
             throw new IOException("Connection is closed.");
+    	}
         
         try
         {
-        	byte[] data = writer.getSerializedData(sendable);
+            byte[] data = writer.getSerializedData(sendable);
         	int len = data.length;
-        	dos.writeInt(len);
+        	//System.out.println("Begin write");
+            dos.writeInt(len);
             dos.write(data);
+            //System.out.println("End write");
         }
         catch (IOException e)
         {
+            System.out.println("Caught error.");
             close();
             throw e;
         }

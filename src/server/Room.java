@@ -86,6 +86,16 @@ public class Room
     {
         System.out.println("Room " + name + " client kicked.");
         ClientSession s = clients.values().iterator().next();
+        s.deliverToClient(RingServer.Stats().getServerUpdate(name));
+        clients.remove(s.getClientID());
         s.kickClient();
+    }
+    
+    public void kickAll()
+    {
+        while (clients.size() > 0)
+        {
+            kickOne();
+        }
     }
 }
