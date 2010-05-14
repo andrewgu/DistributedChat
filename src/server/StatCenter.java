@@ -45,7 +45,7 @@ public class StatCenter {
         this.serverAddress = null;
         this.load = 0.0f;
         this.latestRingStat = null;
-        this.serverList = null;
+        this.serverList = new ArrayList<ServerPriorityListing>();
         this.previousUpdateCounter = Long.MIN_VALUE;
     }
 	
@@ -90,7 +90,9 @@ public class StatCenter {
             // Any servers that dropped from the ring won't update their entry.
             if (stat.lastUpdate > this.previousUpdateCounter)
             {
-                serverList.add(new ServerPriorityListing(priorityCounter, stat.id, stat.addr));
+                // Switch port to CLIENT_PORT because that's what the clients connect to.
+                serverList.add(new ServerPriorityListing(priorityCounter, stat.id, 
+                        new ServerAddress(stat.addr.getHost(), RingServer.CLIENT_PORT)));
                 priorityCounter++;
             }
         }

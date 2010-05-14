@@ -38,12 +38,21 @@ public class ByteBufferInputStream extends InputStream
 		{
 			byte data = dataBuffer[offset + mark];
 			mark++;
-			return data;
+			return signedByteToUnsigned(data);
 		}
 		else
 		{
 			return -1;
 		}
 	}
+
+    private int signedByteToUnsigned(byte data)
+    {
+        //return (int)data;
+        if (data < 0)
+            return (int)data + 256;
+        else
+            return (int)data;
+    }
 
 }

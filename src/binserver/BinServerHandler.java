@@ -39,6 +39,7 @@ public class BinServerHandler implements IServerHandler<BinSession>
         BinSession session = new BinSession(connection);
         connection.setAttachment(session);
         nodes.put(session.identifier, session);
+        System.out.println("Connected.");
     }
 
     @Override
@@ -49,6 +50,7 @@ public class BinServerHandler implements IServerHandler<BinSession>
         {
         case BIN_CLIENT_ADDRESS:
             connection.getAttachment().nodeAddress = ((BinClientAddress)packet).getName();
+            System.out.println("Client address: " + connection.getAttachment().nodeAddress);
             break;
         case BIN_NODE_REQUEST:
             this.nodeRequest((NodeRequest)packet, connection);
@@ -76,6 +78,8 @@ public class BinServerHandler implements IServerHandler<BinSession>
     private void nodeRequest(NodeRequest packet,
             IServerConnection<BinSession> connection) throws IOException
     {
+        System.out.println("Node requested.");
+        
         BinSession popped;
         
         do

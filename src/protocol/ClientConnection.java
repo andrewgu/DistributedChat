@@ -43,6 +43,7 @@ public class ClientConnection
     public ClientConnection(InetAddress host, int port, 
             IClientHandler handler) throws IOException
     {
+        System.out.println("Connection opened on port " + port);
     	this.socket = new Socket(host, port);
     	
         this.handler = handler;

@@ -29,6 +29,7 @@ public class Room
     // Adds and culls messages.
     public synchronized boolean addMessage(CoreMessage msg)
     {
+        System.out.println("Room " + name + " message added.");
         this.messages.addMessage(msg);
         // return whether this was the originating node, i.e. if the original sender is here. 
         return broadcastMessage(msg);
@@ -46,11 +47,13 @@ public class Room
     
     public synchronized void addClient(ClientSession client)
     {
+        System.out.println("Room " + name + " client added.");
         this.clients.put(client.getClientID(), client);
     }
     
     public synchronized void removeClient(ClientSession client)
     {
+        System.out.println("Room " + name + " client removed.");
         this.clients.remove(client.getClientID());
     }
     
@@ -71,7 +74,9 @@ public class Room
         for (ClientSession s : this.clients.values())
         {
             if (s.getClientID().equals(msg.messageID.getClientID()))
+            {
                 clientFound = true;
+            }
             s.deliverToClient(md);
         }
         return clientFound;
@@ -79,6 +84,7 @@ public class Room
 
     public void kickOne()
     {
+        System.out.println("Room " + name + " client kicked.");
         ClientSession s = clients.values().iterator().next();
         s.kickClient();
     }

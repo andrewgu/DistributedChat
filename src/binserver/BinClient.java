@@ -123,7 +123,7 @@ public class BinClient
     }
     
     private static void initBinClient(String binServerAddress) throws IOException
-    {
+    {   
         binServerAddr = InetAddress.getByName(binServerAddress);
         conn = new ClientConnection(binServerAddr, BinServer.BIN_SERVER_PORT, new BinClientHandler());
         conn.sendPacket(new BinClientAddress(binServerAddress));

@@ -310,6 +310,7 @@ public class ProtocolServer<_ATTACHMENT> implements
             catch (IOException e)
             {
                 // Unexpected IO error.
+                //e.printStackTrace();
                 close();
             }
         }

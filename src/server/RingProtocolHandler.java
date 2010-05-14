@@ -30,6 +30,7 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
     public static final float IDLE_CLIENT_LOAD = 0.2f;
     // 5 minutes
     public static final long ROOM_RETENTION_PERIOD = 300000;
+    public static final long HEADNODE_RINGSTAT_FORWARD_DELAY = 1000;
     
 	private ClientConnection outLink;
     
@@ -80,27 +81,31 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
             this.rooms.put(cm.room, r);
         }
 	    
-	    if (r.addMessage(cm))
-	    {
+	    //if (r.addMessage(cm))
+	    //{
     	    // 2. Forwards.
     	    this.forwardPacket(cm);
-	    }
-	    else
-	    {
-	        System.err.println("Originating node for message does not contain the sender.");
-	    }
+	    //}
+	    //else
+	    //{
+	    //    System.err.println("Originating node for message does not contain the sender.");
+	    //}
 	}
 	
 	@Override
 	public synchronized void onConnect(IServerConnection<RingProtocolSession> connection) 
 	{
+	    System.out.println("Predecessor connected.");
 		connection.setAttachment(new RingProtocolSession());
 	}
 
 	@Override
 	public synchronized void onPacket(IServerConnection<RingProtocolSession> connection,
 			ISendable packet) {
-		/*
+		
+	    System.out.print(">");
+	    //System.out.println("Packet from predecessor.");
+	    /*
 		 * Ring sends around different types of packets
 		 * 
 		 * 1. Message forwards: keep on forwarding them/deliver to 
@@ -120,24 +125,40 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
 		case CORE_MESSAGE:
 			handleCoreMessage((CoreMessage) packet);
 			break;
+		default:
+		    System.out.println("Unhandled packet.");
 		}	
 	}
 	
 	@Override
     public synchronized void onClose(IServerConnection<RingProtocolSession> connection) 
     {
+	    //Thread.dumpStack();
+	    System.out.println("Predecessor disconnected.");
     }
 	
 	private void handleRingInit(RingInitPacket packet)
     {
+	    System.out.println("Ring init packet server number: " + packet.getServerID().getServerNumber());
 	    RingServer.Stats().initNode(packet.getServerID(), packet.getServerAddress());
     }
 
     private void handleRingStat(RingStat rs) 
 	{
+        System.out.print("#" + rs.getCurrentUpdateCounter() + "#");
+        
         if (RingServer.isHeadNode())
         {
             headNodeUpdate(rs);
+            // Delay the RingStat so that it's not instant.
+            try
+            {
+                Thread.sleep(HEADNODE_RINGSTAT_FORWARD_DELAY);
+            }
+            catch (InterruptedException e)
+            {
+                e.printStackTrace();
+            }
         }
         
         if (this.outLink == null)
@@ -162,14 +183,28 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
 
     private void findSuccessor(RingStat rs)
     {
+        System.out.println("Looking for successor.");
+        
         // No outlink, and this RingStat is hot off the press. The previous node has
         // removed the dead nodes for you, so really you're just looking for the lowest
         // counter in the list.
         ServerStats successor = rs.getOldestNode();
         try
         {
-            this.outLink = new ClientConnection(InetAddress.getByName(successor.addr.getHost()), 
-                    successor.addr.getPort(), new RingClientHandler(this));
+            if (successor.id.equals(RingServer.Stats().getServerID()))
+            {
+                System.out.println("Localhost.");
+                this.outLink = new ClientConnection(InetAddress.getLocalHost(),
+                        successor.addr.getPort(), new RingClientHandler(this));
+                this.outLink.startReadLoop();
+            }
+            else
+            {
+                System.out.println("External successor.");
+                this.outLink = new ClientConnection(InetAddress.getByName(successor.addr.getHost()), 
+                        successor.addr.getPort(), new RingClientHandler(this));
+                this.outLink.startReadLoop();
+            }
             
             // Empty the queue.
             while (!this.queuedOutgoing.isEmpty())
@@ -177,6 +212,7 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
         }
         catch (IOException e)
         {
+            System.out.println("Failed to connect to successor.");
             // Failed, try again next time.
             this.outLink = null;
         }
@@ -207,6 +243,8 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
     }
 
     private void handleCoreMessage(CoreMessage cm) {
+        System.out.println("Core message sent by " + cm.alias);
+        
         String room = cm.room;
         Room rm = this.rooms.get(room);
         if (rm == null)
@@ -218,19 +256,27 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
         // Forward if this was not the originating node.
         // addMessage returns whether this was the originating node.
         if (!rm.addMessage(cm))
+        {
+            System.out.println("Forwarded.");
             this.forwardPacket(cm);
+        }
 	}
 	
 	private void forwardPacket(ISendable pkt) 
 	{
+	    //System.out.println("Attempting to forward packet.");
+	    
 	    if(this.outLink != null) 
 	    {
+	        //System.out.println("Non-null outlink.");
 			try 
 			{
+			    System.out.println(".");
 				this.outLink.sendPacket(pkt);
 			} 
 			catch (IOException e) 
 			{
+			    System.out.println("Forwarding error.");
 			    // Will try to find a successor on next RingStat.
 			    this.outLink = null;
 			    this.queuedOutgoing.add(pkt);
@@ -238,6 +284,7 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
 		} 
 	    else 
 	    { 
+	        System.out.println("Null outlink.");
 			this.queuedOutgoing.add(pkt);
 	    }
 	}
@@ -296,13 +343,15 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
         boolean hasRelief = hasReliefLoad(self, rs);
         if (load >= THRESHOLD_CLIENT_LOAD && hasRelief)
         {
-            // If above THRESHOLD and there is at least one below RELIEF, then offload excess.   
+            // If above THRESHOLD and there is at least one below RELIEF, then offload excess.
+            System.out.println("Kicking clients to other nodes.");
             kickExcessNodes(load);
         }
         else if (load <= IDLE_CLIENT_LOAD && hasRelief)
         {
             // If below IDLE and there is at least one below RELIEF, then kick all clients
             // and shrink the ring.
+            System.out.println("Idle. Dropping.");
             dropNode();
         }
     }
@@ -344,6 +393,7 @@ public class RingProtocolHandler implements IServerHandler<RingProtocolSession>
                 this.outLink.close();
                 this.outLink = new ClientConnection(InetAddress.getByName(nodeAddress), 
                         RingServer.RING_PORT, new RingClientHandler(this));
+                this.outLink.startReadLoop();
                 this.outLink.sendPacket(new RingInitPacket(lowest.getRing(), 
                         lowest.getServerNumber()-1, RingServer.RING_PORT, nodeAddress));
             }

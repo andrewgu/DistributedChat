@@ -54,7 +54,7 @@ public class TestChatServer
     private static class TestChatSession
     {
         private IServerConnection<TestChatSession> connection;
-        private ClientID clientId;
+        //private ClientID clientId;
         private int connectAttempts;
         private int reconnectAttempts;
         private int sendAttempts;
@@ -62,7 +62,7 @@ public class TestChatServer
         public TestChatSession(IServerConnection<TestChatSession> connection)
         {
             this.connection = connection;
-            this.clientId = null;
+            //this.clientId = null;
             
             this.connectAttempts = 0;
             this.reconnectAttempts = 0;
@@ -81,13 +81,13 @@ public class TestChatServer
         
         public void setClientID(ClientID id)
         {
-            this.clientId = id;
+            //this.clientId = id;
         }
         
-        public ClientID getClientID()
+        /*public ClientID getClientID()
         {
             return this.clientId;
-        }
+        }*/
 
         public int getConnectAttempts()
         {

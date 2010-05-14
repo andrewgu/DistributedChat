@@ -48,6 +48,8 @@ public class RingServer
         
         clientService.start();
         ringService.start();
+        
+        System.out.println("Started base services.");
     }
     
     public static void initHead(String serverName) throws UnknownHostException, IOException
@@ -58,6 +60,8 @@ public class RingServer
         startHead();
         
         ringHandler.startRingStat();
+        
+        System.out.println("Started initial head node.");
     }
 
     public static void startHead() throws UnknownHostException, IOException
@@ -66,10 +70,14 @@ public class RingServer
         authService = new ProtocolServer<AuthSession>(AUTH_PORT, AUTH_THREADS,
                 authHandler);
         authService.start();
+        
+        System.out.println("Upgraded to head node.");
     }
     
     public static void stop()
     {
+        System.out.println("Stopping node.");
+        
         if (authService != null)
             authService.stop();
         if (clientService != null)

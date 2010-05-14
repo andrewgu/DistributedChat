@@ -29,12 +29,14 @@ public class AuthProtocolHandler implements IServerHandler<AuthSession> {
     public void onPacket(IServerConnection<AuthSession> connection,
             ISendable packet) throws IOException {
 
-        switch(packet.getPacketType()) {
+        switch(packet.getPacketType()) 
+        {
         case FIND_ROOM:
             handleFindRoom(connection, (FindRoom) packet);
             break;
            
         default:
+            System.out.println("Unrecognized packet type in AuthProtocolHandler.onPacket.");
             connection.close();
         }
     }
@@ -42,6 +44,8 @@ public class AuthProtocolHandler implements IServerHandler<AuthSession> {
     private void handleFindRoom(IServerConnection<AuthSession> connection,
             FindRoom fr)
     {
+        System.out.println("Find room request for room " + fr.getRoom());
+        
         Integer i;
         synchronized (this.clientInts)
         {
@@ -56,6 +60,7 @@ public class AuthProtocolHandler implements IServerHandler<AuthSession> {
         ClientID client = new ClientID(fr.getRoom(), i);
         try
         {
+            System.out.println("Room found.");
             connection.sendPacket(new RoomFound(client, RingServer.Stats().getServerUpdate(fr.getRoom()),
                     fr.getReplyCode()));
         }
@@ -64,6 +69,5 @@ public class AuthProtocolHandler implements IServerHandler<AuthSession> {
             e.printStackTrace();
             connection.close();
         }
-
     }
 }
